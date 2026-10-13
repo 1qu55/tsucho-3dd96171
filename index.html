@@ -107,6 +107,13 @@ nav.tabs div{display:flex;gap:4px;width:100%;max-width:560px}
 nav.tabs button{flex:1;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:8px 4px;border-radius:10px;cursor:pointer}
 nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;z-index:6}
+.inc-row{border-top:1px solid var(--line);padding-block:10px;display:flex;flex-direction:column;gap:6px}
+.inc-row:first-child{border-top:0;padding-top:0}
+.inc-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;align-items:end}
+.inc-grid>*{min-width:0}
+.l{font-size:12px;color:var(--muted);display:block}
+.act{display:flex;gap:6px;align-items:center}
+.act input{min-width:0;padding:7px 8px}
 .rules{font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
 @media (prefers-reduced-motion:no-preference){.chip,.btn,nav.tabs button{transition:background .15s,color .15s}}
 </style>
@@ -159,12 +166,13 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
     </form>
 
     <div class="card stack">
-      <h2>入ってくるお金（給与など）</h2>
+      <h2>給与・入ってくるお金</h2>
+      <p class="muted" style="font-size:12px;margin:0">実際に入った額を入れると、計算は見込みの代わりにその額を使います。</p>
       <div id="incList"></div>
       <form id="fInc" class="stack">
         <div class="row2">
           <div><label class="f" for="incDate">入る日</label><input class="t" id="incDate" type="date" required></div>
-          <div><label class="f" for="incAmt">金額</label><input class="t num" id="incAmt" inputmode="numeric" required></div>
+          <div><label class="f" for="incAmt">見込み額</label><input class="t num" id="incAmt" inputmode="numeric" required></div>
         </div>
         <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
         <button class="btn sub" type="submit">追加</button>
@@ -239,6 +247,8 @@ function billDate(ds,c){
   if(c==="メルカード") return fmt(new Date(y,m+1,0));
   return fmt(new Date(y,m,27));
 }
+const hasActual=i=>i.actual!==undefined&&i.actual!==null&&i.actual!=="";
+const incVal=i=>hasActual(i)?Number(i.actual)||0:Number(i.amount)||0;
 const baseDate=()=>S.settings.baseDate||today();
 
 function compute(){
@@ -254,7 +264,7 @@ function compute(){
   const ev=[];
   for(const b of bills.values()) ev.push({date:b.date,label:b.card==="口座"?"口座から支払い":b.card+"の引き落とし",amount:-b.amount});
   const incs=S.incomes.filter(i=>i.date>base);
-  for(const i of incs) ev.push({date:i.date,label:i.name||"入金",amount:Number(i.amount)||0,inc:true});
+  for(const i of incs) ev.push({date:i.date,label:(i.name||"入金")+(hasActual(i)?"":"（見込み）"),amount:incVal(i),inc:true});
   // 固定費は、ほかの予定が続く月の終わりまで並べる（最低でも来月末まで）
   const b0=new Date(base+"T00:00");
   let horizon=fmt(new Date(b0.getFullYear(),b0.getMonth()+2,0));
@@ -272,7 +282,7 @@ function compute(){
   let run=bal, low=null;
   for(const e of ev){run+=e.amount;e.bal=run;if(!low||run<low.bal)low=e}
   const unpaid=[...bills.values()].reduce((s,b)=>s+b.amount,0);
-  const incomeSum=incs.reduce((s,i)=>s+(Number(i.amount)||0),0);
+  const incomeSum=incs.reduce((s,i)=>s+incVal(i),0);
   // 今日カードで使った分が最初に引き落とされる日以降で、一番少ない残高
   // あと使える額：今月中の引き落とし・固定費・入金だけを反映（来月以降の請求は引かない）
   const t=today(); const monthEnd=fmt(new Date(+t.slice(0,4),+t.slice(5,7),0));
@@ -320,7 +330,16 @@ function render(){
   if(document.activeElement!==$("bal")) $("bal").value=(S.settings.balance??"")===""?"":Number(S.settings.balance).toLocaleString("ja-JP");
   if(document.activeElement!==$("balDate")) $("balDate").value=S.settings.baseDate||today();
   const li=(arr,coll,txt)=>arr.length?arr.map(x=>`<div class="item" style="cursor:default"><div class="what"><div>${txt(x)}</div></div><button class="mini" data-del="${coll}/${esc(x.id)}">削除</button></div>`).join(""):"";
-  $("incList").innerHTML=li([...S.incomes].sort((a,b)=>a.date<b.date?-1:1),"incomes",x=>`${md(x.date)} ${esc(x.name||"入金")} <span class="num">${yen(Number(x.amount)||0)}</span>${x.date<=c.base?' <span class="tag">入金済み</span>':""}`)||`<div class="empty">まだありません。</div>`;
+  if(!$("incList").contains(document.activeElement)) $("incList").innerHTML=S.incomes.length?[...S.incomes].sort((a,b)=>a.date<b.date?-1:1).map(x=>{
+    const exp=Number(x.amount)||0, act=hasActual(x)?Number(x.actual)||0:null, diff=act===null?null:act-exp;
+    return `<div class="inc-row">
+      <div class="ghead"><span>${md(x.date)} ${esc(x.name||"入金")}${act===null?'<span class="tag">見込み</span>':'<span class="tag">実際の額</span>'}${x.date<=c.base?'<span class="tag">入金済み</span>':""}</span><button class="mini" data-del="incomes/${esc(x.id)}">削除</button></div>
+      <div class="inc-grid">
+        <div><div class="l">見込み</div><div class="num">${yen(exp)}</div></div>
+        <div><label class="l" for="act-${esc(x.id)}">実際に入った額</label><div class="act"><input class="t num" id="act-${esc(x.id)}" inputmode="numeric" placeholder="未入力" value="${act===null?"":act.toLocaleString("ja-JP")}"><button class="mini" type="button" data-act="${esc(x.id)}">保存</button></div></div>
+      </div>
+      ${diff===null?"":`<div class="l">見込みとの差 <span class="num ${diff<0?"neg":"pos"}">${diff<0?"":"+"}${yen(diff)}</span></div>`}
+    </div>`}).join(""):`<div class="empty">まだありません。</div>`;
   $("fixList").innerHTML=li(S.fixed,"fixed",x=>`毎月${Number(x.day)}日 ${esc(x.name)} <span class="num">${yen(Number(x.amount)||0)}</span>`)||`<div class="empty">まだ入っていません。追加すると「資産」の計算に毎月入ります。</div>`;
 }
 
@@ -381,7 +400,12 @@ $("fInc").addEventListener("submit",async e=>{e.preventDefault();
 $("fFix").addEventListener("submit",async e=>{e.preventDefault();
   const amount=toNum($("fixAmt").value); if(!amount)return;
   if(await write(()=>S.fixed.push({id:newId(),name:$("fixName").value.trim(),amount,day:Math.min(31,Math.max(1,toNum($("fixDay").value)||1))}),"追加しました")){$("fixName").value="";$("fixAmt").value=""}});
-$("tab-set").addEventListener("click",async e=>{const b=e.target.closest("[data-del]");if(!b)return;
+$("tab-set").addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("act-")){const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""}});
+$("tab-set").addEventListener("click",async e=>{
+  const a=e.target.closest("[data-act]");
+  if(a){const id=a.dataset.act, v=$("act-"+id).value.trim(); const inc=S.incomes.find(x=>x.id===id); if(!inc)return;
+    a.blur(); await write(()=>{ if(v==="") delete inc.actual; else inc.actual=toNum(v) }, v===""?"実際の額を消しました":"実際の額を保存しました"); return}
+  const b=e.target.closest("[data-del]");if(!b)return;
   if(!b.dataset.armed){b.dataset.armed="1";b.textContent="本当に削除";b.classList.add("danger");return}
   const [c,id]=b.dataset.del.split("/"); await write(()=>{S[c]=coll(c).filter(x=>x.id!==id)},"削除しました")});
 
