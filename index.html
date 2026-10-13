@@ -274,10 +274,11 @@ function compute(){
   const unpaid=[...bills.values()].reduce((s,b)=>s+b.amount,0);
   const incomeSum=incs.reduce((s,i)=>s+(Number(i.amount)||0),0);
   // 今日カードで使った分が最初に引き落とされる日以降で、一番少ない残高
-  const t=today(); const firstBill=CARDS.filter(c=>c!=="口座").map(c=>billDate(t,c)).sort()[0];
-  let room=null; for(const e of ev){ if(e.date>=firstBill && (room===null||e.bal<room)) room=e.bal }
-  if(room===null) room=run;
-  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,firstBill};
+  // あと使える額：今月中の引き落とし・固定費・入金だけを反映（来月以降の請求は引かない）
+  const t=today(); const monthEnd=fmt(new Date(+t.slice(0,4),+t.slice(5,7),0));
+  let mOut=0,mIn=0; for(const e of ev){ if(e.date<=monthEnd){ if(e.amount<0) mOut-=e.amount; else mIn+=e.amount } }
+  const room=bal-mOut+mIn;
+  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn};
 }
 
 function chips(el,list,get,set){
@@ -305,7 +306,7 @@ function render(){
   // 資産タブ
   const k=(l,v,d,cls="")=>`<div class="kpi ${cls}"><div class="l">${l}</div><div class="v num ${v<0?"neg":""}">${yen(v)}</div><div class="d">${d}</div></div>`;
   $("kpis").innerHTML=
-    k("あと使える目安",c.room,c.room<0?`今日から使わなくても、${md(c.firstBill)}以降で${yen(-c.room)}足りなくなる`:`今日カードで使う分が引き落とされる${md(c.firstBill)}以降で、一番少なくなる残高`,"main")+
+    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月の引き落とし${yen(c.mOut)}${c.mIn?` ＋ 今月入るお金${yen(c.mIn)}`:""}。来月以降の請求は引いていません`,"main")+
     k("今の口座残高",c.bal,`${md(c.base)}時点`)+
     k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
