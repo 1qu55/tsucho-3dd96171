@@ -118,6 +118,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
 
   <!-- 記録 -->
   <section id="tab-rec" class="stack">
+    <div id="nag" class="notice" hidden style="display:flex;align-items:center;gap:10px"><span id="nagText" style="flex:1;min-width:0"></span><button class="mini" id="nagBtn" type="button">今すぐ保存</button></div>
     <form id="f" class="card stack" autocomplete="off">
       <div>
         <label class="f" for="amt">金額</label>
@@ -187,6 +188,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
     <div class="card stack">
       <h2>バックアップ</h2>
       <p class="muted" style="font-size:13px;margin:0">記録はこのスマホの中だけに保存されます。機種変更やSafariのデータ消去で消えるので、ときどき書き出して、ファイルアプリのOneDriveなどに保存しておいてください。</p>
+      <span class="muted" id="lastBk" style="font-size:12px"></span>
       <button class="btn sub" id="exportBtn" type="button">バックアップを書き出す</button>
       <label class="btn sub" for="importFile" style="text-align:center">バックアップから戻す</label>
       <input id="importFile" type="file" accept=".json,application/json" hidden>
@@ -290,7 +292,7 @@ function updateHint(){
 }
 
 function render(){
-  const c=compute();
+  const c=compute(); nag();
   $("asof").textContent=`残高は${md(c.base)}時点`;
   // 記録タブ
   const row=e=>`<div class="item" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")}${e.date>today()?'<span class="tag">予定</span>':""}</div><div>${md(e.date)} · ${esc(e.card)}${e.memo?" · "+esc(e.memo):""}</div></div><span class="num">${yen(Number(e.amount)||0)}</span></div>`;
@@ -396,11 +398,26 @@ $("dt").value=today(); $("incDate").value=today();
 updateHint(); render();
 
 // バックアップ
-$("exportBtn").onclick=()=>{
-  const blob=new Blob([JSON.stringify({app:"ikuTsucho",v:1,savedAt:new Date().toISOString(),entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings},null,1)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`通帳バックアップ_${today()}.json`;document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
-};
+// 共有シートが使えれば「ファイルに保存」→OneDriveへ。使えなければダウンロード
+async function backup(){
+  const name=`通帳バックアップ_${today()}.json`;
+  const json=JSON.stringify({app:"ikuTsucho",v:1,savedAt:new Date().toISOString(),entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:{...S.settings,lastBackup:undefined}},null,1);
+  const file=new File([json],name,{type:"application/json"});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]})}
+    else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+  }catch(e){ if(e&&e.name==="AbortError"){toast("保存をやめました");return} toast("書き出せませんでした");return }
+  S.settings.lastBackup=Date.now(); persist(); render(); toast("書き出しました");
+}
+$("exportBtn").onclick=backup;
+$("nagBtn").onclick=backup;
+function nag(){
+  const last=S.settings.lastBackup, days=last?Math.floor((Date.now()-last)/864e5):null;
+  const show=S.entries.length>0&&(days===null||days>=7);
+  $("nag").hidden=!show;
+  if(show) $("nagText").textContent=days===null?"まだバックアップがありません。":`最後のバックアップから${days}日たっています。`;
+  $("lastBk").textContent=last?`最後のバックアップ：${md(fmt(new Date(last)))}`:"まだバックアップしていません";
+}
 $("importFile").onchange=async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{const d=JSON.parse(await f.text()); if(!Array.isArray(d.entries)) throw 0;
