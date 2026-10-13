@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="通帳">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0c6657">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>いくの通帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: one-column phone app, passbook-style ledger, bottom tab bar */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --ink:#16201e; --muted:#5b6966; --line:#d6dfdc;
+  --accent:#0c6657; --accent-ink:#ffffff; --accent-soft:#d9eee8;
+  --neg:#b42318; --neg-soft:#fde7e4; --pos:#1b7a3c; --warn-soft:#fff4d6;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1413; --surface:#172120; --ink:#e6eeec; --muted:#98a8a4; --line:#2a3735;
+  --accent:#4cc0a6; --accent-ink:#06201a; --accent-soft:#1b3530;
+  --neg:#ff8b7b; --neg-soft:#3b1f1b; --pos:#6fd28c; --warn-soft:#3a3016; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1413; --surface:#172120; --ink:#e6eeec; --muted:#98a8a4; --line:#2a3735;
+  --accent:#4cc0a6; --accent-ink:#06201a; --accent-soft:#1b3530;
+  --neg:#ff8b7b; --neg-soft:#3b1f1b; --pos:#6fd28c; --warn-soft:#3a3016; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:0 calc(84px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding-block:16px}
+h1{font-size:20px;margin:0;font-weight:700;text-wrap:balance}
+h2{font-size:13px;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:500}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.neg{color:var(--neg)} .pos{color:var(--pos)} .muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.top small{color:var(--muted);font-size:12px}
+.notice{background:var(--warn-soft);border-radius:10px;padding:10px 12px;font-size:13px}
+
+/* form */
+label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;letter-spacing:.04em}
+.amount{display:flex;align-items:baseline;gap:6px;border-bottom:2px solid var(--accent);padding-bottom:4px}
+.amount input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font-family:var(--f-num);font-size:34px;font-weight:600;outline:none;padding:0}
+.amount span{font-size:18px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 13px;font:inherit;font-size:14px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2>*{min-width:0}
+input.t,select.t{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;padding:9px 10px;font:inherit;font-size:16px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.hint{font-size:13px;color:var(--accent);background:var(--accent-soft);border-radius:9px;padding:8px 10px}
+.btn{border:0;border-radius:11px;padding:13px;font:inherit;font-size:16px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink);width:100%}
+.btn.sub{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+.btn:disabled{opacity:.5;cursor:default}
+.btns{display:flex;gap:8px}
+.mini{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;flex:none}
+.mini.danger{border-color:var(--neg);color:var(--neg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* lists */
+.group{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.group:first-child{border-top:0;margin-top:0;padding-top:0}
+.ghead{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:14px}
+.item{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:14px;cursor:pointer;border-radius:8px}
+.item .what{flex:1;min-width:0}
+.item .what div:last-child{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;border-radius:5px;padding:1px 6px;background:var(--accent-soft);color:var(--accent);margin-left:4px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:20px;font-weight:600;margin-top:2px}
+.kpi .d{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
+.kpi.main{grid-column:1/-1;background:var(--accent-soft);border-color:transparent}
+.kpi.main .v{font-size:28px}
+
+/* passbook */
+.book{overflow-x:auto}
+.book table{width:100%;border-collapse:collapse;font-size:13px}
+.book th{font-weight:500;color:var(--muted);font-size:11px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);letter-spacing:.06em}
+.book th:nth-child(-n+2){text-align:left}
+.book td{padding:8px 6px;border-bottom:1px dashed var(--line);text-align:right;vertical-align:top}
+.book td:nth-child(2){text-align:left;width:100%}
+.book td:first-child{text-align:left;color:var(--muted)}
+.book tr.lowrow td{background:var(--neg-soft)}
+.book tr.inc td:nth-child(2){color:var(--pos);font-weight:500}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
+nav.tabs div{display:flex;gap:4px;width:100%;max-width:560px}
+nav.tabs button{flex:1;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:8px 4px;border-radius:10px;cursor:pointer}
+nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;z-index:6}
+.rules{font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+@media (prefers-reduced-motion:no-preference){.chip,.btn,nav.tabs button{transition:background .15s,color .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top"><h1>いくの通帳</h1><small id="asof"></small></div>
+
+  <!-- 記録 -->
+  <section id="tab-rec" class="stack">
+    <form id="f" class="card stack" autocomplete="off">
+      <div>
+        <label class="f" for="amt">金額</label>
+        <div class="amount"><input id="amt" inputmode="numeric" placeholder="0" aria-label="金額"><span>円</span></div>
+      </div>
+      <div><label class="f">払い方</label><div class="chips" id="cardChips"></div></div>
+      <div><label class="f">項目</label><div class="chips" id="catChips"></div></div>
+      <div class="row2">
+        <div><label class="f" for="dt">使った日（先の日付なら予定）</label><input class="t" id="dt" type="date"></div>
+        <div><label class="f" for="memo">メモ</label><input class="t" id="memo" placeholder="任意"></div>
+      </div>
+      <div class="hint" id="hint"></div>
+      <div class="btns"><button class="btn" id="save" type="submit">記録する</button><button class="btn sub" id="cancel" type="button" hidden style="width:auto;padding-inline:18px">やめる</button></div>
+    </form>
+
+    <div class="card">
+      <h2>これからの引き落とし</h2>
+      <div id="upcoming"></div>
+      <details id="paidWrap"><summary id="paidSum"></summary><div id="paid"></div></details>
+    </div>
+  </section>
+
+  <!-- 資産 -->
+  <section id="tab-asset" class="stack" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="tab-set" class="stack" hidden>
+    <form class="card stack" id="fBal">
+      <h2>銀行残高</h2>
+      <div class="row2">
+        <div><label class="f" for="bal">残高（円）</label><input class="t num" id="bal" inputmode="numeric"></div>
+        <div><label class="f" for="balDate">確認した日</label><input class="t" id="balDate" type="date"></div>
+      </div>
+      <button class="btn" type="submit">残高を更新</button>
+    </form>
+
+    <div class="card stack">
+      <h2>入ってくるお金（給与など）</h2>
+      <div id="incList"></div>
+      <form id="fInc" class="stack">
+        <div class="row2">
+          <div><label class="f" for="incDate">入る日</label><input class="t" id="incDate" type="date" required></div>
+          <div><label class="f" for="incAmt">金額</label><input class="t num" id="incAmt" inputmode="numeric" required></div>
+        </div>
+        <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
+        <button class="btn sub" type="submit">追加</button>
+      </form>
+    </div>
+
+    <div class="card stack">
+      <h2>毎月の固定費</h2>
+      <div id="fixList"></div>
+      <form id="fFix" class="stack">
+        <div class="row2">
+          <div><label class="f" for="fixName">名前</label><input class="t" id="fixName" placeholder="例：保険" required></div>
+          <div><label class="f" for="fixAmt">金額</label><input class="t num" id="fixAmt" inputmode="numeric" required></div>
+        </div>
+        <div><label class="f" for="fixDay">引き落とし日（毎月）</label><input class="t" id="fixDay" type="number" min="1" max="31" value="27" required></div>
+        <button class="btn sub" type="submit">追加</button>
+      </form>
+    </div>
+
+
+    <div class="card stack">
+      <h2>バックアップ</h2>
+      <p class="muted" style="font-size:13px;margin:0">記録はこのスマホの中だけに保存されます。機種変更やSafariのデータ消去で消えるので、ときどき書き出して、ファイルアプリのOneDriveなどに保存しておいてください。</p>
+      <button class="btn sub" id="exportBtn" type="button">バックアップを書き出す</button>
+      <label class="btn sub" for="importFile" style="text-align:center">バックアップから戻す</label>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+      <div id="importConfirm" class="notice stack" hidden><span id="importMsg"></span><div class="btns"><button class="btn" id="importOk" type="button">戻す</button><button class="btn sub" id="importNo" type="button">やめる</button></div></div>
+    </div>
+    <div class="card">
+      <h2>カードの締め日と引き落とし日</h2>
+      <div class="rules">
+        <span>楽天</span><span>月末締め → 翌月27日</span>
+        <span>三井住友</span><span>月末締め → 翌月26日</span>
+        <span>PayPay</span><span>月末締め → 翌月27日</span>
+        <span>JCB</span><span>15日締め → 翌月10日</span>
+        <span>メルカード</span><span>月末締め → 翌月末</span>
+        <span>口座</span><span>その日に口座から出る</span>
+      </div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" role="tablist"><div>
+  <button role="tab" data-t="rec" aria-selected="true">記録</button>
+  <button role="tab" data-t="asset" aria-selected="false">資産</button>
+  <button role="tab" data-t="set" aria-selected="false">設定</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const CARDS=["楽天","三井住友","PayPay","JCB","メルカード","口座"];
+const CATS=["食費","ガソリン","車","買い物","サブスク","消耗品","メルカリ","その他"];
+const $=id=>document.getElementById(id);
+const S={entries:[],incomes:[],fixed:[],settings:{}};
+let editingId=null, card="楽天", cat="食費";
+
+const pad=n=>String(n).padStart(2,"0");
+const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today=()=>fmt(new Date());
+const md=s=>{const [,m,d]=s.split("-");return `${+m}/${+d}`};
+const yen=n=>(n<0?"−":"")+Math.abs(Math.round(n)).toLocaleString("ja-JP")+"円";
+const toNum=v=>{const n=parseInt(String(v).replace(/[^\d]/g,""),10);return isNaN(n)?0:n};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function billDate(ds,c){
+  const [y,m,d]=ds.split("-").map(Number);
+  if(c==="口座") return ds;
+  if(c==="JCB") return fmt(new Date(y,m-1+(d<=15?1:2),10));
+  if(c==="三井住友") return fmt(new Date(y,m,26));
+  if(c==="メルカード") return fmt(new Date(y,m+1,0));
+  return fmt(new Date(y,m,27));
+}
+const baseDate=()=>S.settings.baseDate||today();
+
+function compute(){
+  const base=baseDate(), bal=Number(S.settings.balance)||0;
+  const bills=new Map(); const paid=[];
+  for(const e of S.entries){
+    const bd=billDate(e.date,e.card);
+    if(bd<=base){paid.push(e);continue}
+    const k=bd+"|"+e.card;
+    if(!bills.has(k)) bills.set(k,{date:bd,card:e.card,amount:0,items:[]});
+    const b=bills.get(k); b.amount+=Number(e.amount)||0; b.items.push(e);
+  }
+  const ev=[];
+  for(const b of bills.values()) ev.push({date:b.date,label:b.card==="口座"?"口座から支払い":b.card+"の引き落とし",amount:-b.amount});
+  const incs=S.incomes.filter(i=>i.date>base);
+  for(const i of incs) ev.push({date:i.date,label:i.name||"入金",amount:Number(i.amount)||0,inc:true});
+  // 固定費は、ほかの予定が続く月の終わりまで並べる（最低でも来月末まで）
+  const b0=new Date(base+"T00:00");
+  let horizon=fmt(new Date(b0.getFullYear(),b0.getMonth()+2,0));
+  for(const e of ev) if(e.date>horizon) horizon=e.date;
+  const hz=new Date(horizon+"T00:00"); horizon=fmt(new Date(hz.getFullYear(),hz.getMonth()+1,0));
+  for(const f of S.fixed){
+    for(let y=b0.getFullYear(),m=b0.getMonth();;m++){
+      const last=new Date(y,m+1,0).getDate();
+      const ds=fmt(new Date(y,m,Math.min(Number(f.day)||1,last)));
+      if(ds>horizon) break;
+      if(ds>base) ev.push({date:ds,label:f.name,amount:-(Number(f.amount)||0)});
+    }
+  }
+  ev.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.amount-b.amount));
+  let run=bal, low=null;
+  for(const e of ev){run+=e.amount;e.bal=run;if(!low||run<low.bal)low=e}
+  const unpaid=[...bills.values()].reduce((s,b)=>s+b.amount,0);
+  const incomeSum=incs.reduce((s,i)=>s+(Number(i.amount)||0),0);
+  // 今日カードで使った分が最初に引き落とされる日以降で、一番少ない残高
+  const t=today(); const firstBill=CARDS.filter(c=>c!=="口座").map(c=>billDate(t,c)).sort()[0];
+  let room=null; for(const e of ev){ if(e.date>=firstBill && (room===null||e.bal<room)) room=e.bal }
+  if(room===null) room=run;
+  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,firstBill};
+}
+
+function chips(el,list,get,set){
+  el.innerHTML=list.map(v=>`<button type="button" class="chip" aria-pressed="${v===get()}" data-v="${esc(v)}">${esc(v)}</button>`).join("");
+  el.onclick=e=>{const b=e.target.closest(".chip");if(!b)return;set(b.dataset.v);chips(el,list,get,set);updateHint()};
+}
+function updateHint(){
+  const d=$("dt").value||today(); const bd=billDate(d,card);
+  const fut=d>today()?"予定として記録。":"";
+  $("hint").textContent= card==="口座" ? `${fut}${md(bd)}に口座から出るお金として計算します`
+    : `${fut}${md(bd)}の${card}の引き落としに入ります`;
+}
+
+function render(){
+  const c=compute();
+  $("asof").textContent=`残高は${md(c.base)}時点`;
+  // 記録タブ
+  const row=e=>`<div class="item" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")}${e.date>today()?'<span class="tag">予定</span>':""}</div><div>${md(e.date)} · ${esc(e.card)}${e.memo?" · "+esc(e.memo):""}</div></div><span class="num">${yen(Number(e.amount)||0)}</span></div>`;
+  $("upcoming").innerHTML=c.bills.length?c.bills.map(b=>`<div class="group"><div class="ghead"><span>${md(b.date)} ${esc(b.card==="口座"?"口座から":b.card)}</span><span class="num">${yen(b.amount)}</span></div>${b.items.sort((a,b)=>a.date<b.date?1:-1).map(row).join("")}</div>`).join("")
+    :`<div class="empty">まだ記録がありません。上の欄に金額を入れて「記録する」を押すと、ここに引き落とし日ごとにまとまります。</div>`;
+  $("paidWrap").hidden=!c.paid.length;
+  $("paidSum").textContent=`引き落とし済み（${c.paid.length}件）`;
+  $("paid").innerHTML=c.paid.sort((a,b)=>a.date<b.date?1:-1).map(row).join("");
+
+  // 資産タブ
+  const k=(l,v,d,cls="")=>`<div class="kpi ${cls}"><div class="l">${l}</div><div class="v num ${v<0?"neg":""}">${yen(v)}</div><div class="d">${d}</div></div>`;
+  $("kpis").innerHTML=
+    k("あと使える目安",c.room,c.room<0?`今日から使わなくても、${md(c.firstBill)}以降で${yen(-c.room)}足りなくなる`:`今日カードで使う分が引き落とされる${md(c.firstBill)}以降で、一番少なくなる残高`,"main")+
+    k("今の口座残高",c.bal,`${md(c.base)}時点`)+
+    k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
+    k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
+    k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
+  $("book").innerHTML=`<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
+    <tr><td>${md(c.base)}</td><td>今の残高</td><td></td><td class="num">${yen(c.bal)}</td></tr>
+    ${c.ev.map(e=>`<tr class="${e.inc?"inc":""} ${e.bal<0?"lowrow":""}"><td>${md(e.date)}</td><td>${esc(e.label)}</td><td class="num ${e.amount<0?"":"pos"}">${e.amount<0?yen(e.amount):"+"+yen(e.amount)}</td><td class="num ${e.bal<0?"neg":""}">${yen(e.bal)}</td></tr>`).join("")}
+  </tbody></table>${c.low&&c.low.bal<0?`<p class="neg" style="font-size:13px;margin:10px 0 0">${md(c.low.date)}に残高が${yen(c.low.bal)}まで下がります。この日より前に、足りない分を口座に入れておく必要があります。</p>`:""}`;
+
+  // 設定タブ
+  if(document.activeElement!==$("bal")) $("bal").value=(S.settings.balance??"")===""?"":Number(S.settings.balance).toLocaleString("ja-JP");
+  if(document.activeElement!==$("balDate")) $("balDate").value=S.settings.baseDate||today();
+  const li=(arr,coll,txt)=>arr.length?arr.map(x=>`<div class="item" style="cursor:default"><div class="what"><div>${txt(x)}</div></div><button class="mini" data-del="${coll}/${esc(x.id)}">削除</button></div>`).join(""):"";
+  $("incList").innerHTML=li([...S.incomes].sort((a,b)=>a.date<b.date?-1:1),"incomes",x=>`${md(x.date)} ${esc(x.name||"入金")} <span class="num">${yen(Number(x.amount)||0)}</span>${x.date<=c.base?' <span class="tag">入金済み</span>':""}`)||`<div class="empty">まだありません。</div>`;
+  $("fixList").innerHTML=li(S.fixed,"fixed",x=>`毎月${Number(x.day)}日 ${esc(x.name)} <span class="num">${yen(Number(x.amount)||0)}</span>`)||`<div class="empty">まだ入っていません。追加すると「資産」の計算に毎月入ります。</div>`;
+}
+
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
+const KEY="ikuTsucho.v1";
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){S.entries=d.entries||[];S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}}}catch{}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify({entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings}));return true}catch{return false}}
+const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const coll=n=>({entries:S.entries,incomes:S.incomes,fixed:S.fixed}[n]);
+async function write(fn,ok){
+  try{fn()}catch{toast("保存できませんでした");return false}
+  if(!persist()){toast("このブラウザでは保存できません");return false}
+  render(); if(ok) toast(ok); return true;
+}
+function resetForm(){
+  editingId=null;$("amt").value="";$("memo").value="";$("dt").value=today();
+  $("save").textContent="記録する";$("cancel").hidden=true;updateHint();
+  const d=$("delEntry"); if(d) d.hidden=true;
+}
+
+// 記録フォーム
+$("amt").addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+$("dt").addEventListener("change",updateHint);
+$("f").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const amount=toNum($("amt").value); if(!amount){$("amt").focus();return}
+  const data={date:$("dt").value||today(),card,cat,amount,memo:$("memo").value.trim()};
+  $("save").disabled=true;
+  const id=editingId;
+  const ok=await write(()=>id?Object.assign(S.entries.find(x=>x.id===id),data):S.entries.push({id:newId(),...data,createdAt:Date.now()}),
+    id?"更新しました":`${yen(amount)}を記録しました`);
+  $("save").disabled=false; if(ok) resetForm();
+});
+$("cancel").onclick=resetForm;
+function startEdit(id){
+  const e=S.entries.find(x=>x.id===id); if(!e) return;
+  editingId=id; card=e.card; cat=e.cat||"その他";
+  $("amt").value=Number(e.amount).toLocaleString("ja-JP"); $("dt").value=e.date; $("memo").value=e.memo||"";
+  $("save").textContent="更新する"; $("cancel").hidden=false;
+  chips($("cardChips"),CARDS,()=>card,v=>card=v); chips($("catChips"),CATS,()=>cat,v=>cat=v);
+  let del=$("delEntry"); if(!del){del=document.createElement("button");del.type="button";del.id="delEntry";del.className="mini danger";del.style.alignSelf="flex-start";$("f").appendChild(del)}
+  del.textContent="この記録を削除";del.dataset.armed="";del.hidden=false;
+  del.onclick=async()=>{ if(!del.dataset.armed){del.dataset.armed="1";del.textContent="もう一度押すと削除";return}
+    if(await write(()=>{S.entries=S.entries.filter(x=>x.id!==id)},"削除しました")){del.hidden=true;resetForm()} };
+  updateHint(); window.scrollTo({top:0,behavior:"smooth"}); $("amt").focus();
+}
+for(const id of ["upcoming","paid"]) $(id).addEventListener("click",e=>{const it=e.target.closest(".item");if(it)startEdit(it.dataset.id)});
+
+// 設定
+$("fBal").addEventListener("submit",async e=>{e.preventDefault();
+  const v=$("bal").value.trim(); if(v===""){$("bal").focus();return}
+  await write(()=>{S.settings={...S.settings,balance:toNum(v),baseDate:$("balDate").value||today()}},"残高を更新しました")});
+$("bal").addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=e.target.value.trim()===""?"":n.toLocaleString("ja-JP")});
+for(const id of ["incAmt","fixAmt"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+$("fInc").addEventListener("submit",async e=>{e.preventDefault();
+  const amount=toNum($("incAmt").value); if(!amount)return;
+  if(await write(()=>S.incomes.push({id:newId(),date:$("incDate").value,amount,name:$("incName").value.trim()||"入金"}),"追加しました")) $("incAmt").value=""});
+$("fFix").addEventListener("submit",async e=>{e.preventDefault();
+  const amount=toNum($("fixAmt").value); if(!amount)return;
+  if(await write(()=>S.fixed.push({id:newId(),name:$("fixName").value.trim(),amount,day:Math.min(31,Math.max(1,toNum($("fixDay").value)||1))}),"追加しました")){$("fixName").value="";$("fixAmt").value=""}});
+$("tab-set").addEventListener("click",async e=>{const b=e.target.closest("[data-del]");if(!b)return;
+  if(!b.dataset.armed){b.dataset.armed="1";b.textContent="本当に削除";b.classList.add("danger");return}
+  const [c,id]=b.dataset.del.split("/"); await write(()=>{S[c]=coll(c).filter(x=>x.id!==id)},"削除しました")});
+
+// タブ
+document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("nav.tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  for(const t of ["rec","asset","set"]) $("tab-"+t).hidden=t!==b.dataset.t;
+  try{localStorage.setItem("tab",b.dataset.t)}catch{}
+  window.scrollTo(0,0)});
+try{const t=localStorage.getItem("tab");if(t)document.querySelector(`nav.tabs button[data-t="${t}"]`)?.click()}catch{}
+
+chips($("cardChips"),CARDS,()=>card,v=>card=v);
+chips($("catChips"),CATS,()=>cat,v=>cat=v);
+$("dt").value=today(); $("incDate").value=today();
+updateHint(); render();
+
+// バックアップ
+$("exportBtn").onclick=()=>{
+  const blob=new Blob([JSON.stringify({app:"ikuTsucho",v:1,savedAt:new Date().toISOString(),entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings},null,1)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`通帳バックアップ_${today()}.json`;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+};
+$("importFile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{const d=JSON.parse(await f.text()); if(!Array.isArray(d.entries)) throw 0;
+    pendingImport=d; $("importMsg").textContent=`記録${d.entries.length}件・入金${(d.incomes||[]).length}件を読み込みます。今のデータは置き換わります。`; $("importConfirm").hidden=false;
+  }catch{toast("バックアップのファイルではありません")}
+  e.target.value="";
+};
+let pendingImport=null;
+$("importOk").onclick=async()=>{const d=pendingImport;if(!d)return;
+  if(await write(()=>{S.entries=d.entries;S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}},"バックアップから戻しました")){pendingImport=null;$("importConfirm").hidden=true}};
+$("importNo").onclick=()=>{pendingImport=null;$("importConfirm").hidden=true};
+
+load(); render();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch{}
+</script>
+</body>
+</html>
