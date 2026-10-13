@@ -213,6 +213,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/13 18:25</p>
     </div>
   </section>
 </div>
@@ -287,7 +288,7 @@ function compute(){
   // あと使える額：今月中の引き落とし・固定費・入金だけを反映（来月以降の請求は引かない）
   const t=today(); const monthEnd=fmt(new Date(+t.slice(0,4),+t.slice(5,7),0));
   let mOut=0,mIn=0; for(const e of ev){ if(e.date<=monthEnd){ if(e.amount<0) mOut-=e.amount; else mIn+=e.amount } }
-  const room=bal-mOut+mIn;
+  const room=bal-mOut;
   return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn};
 }
 
@@ -316,7 +317,7 @@ function render(){
   // 資産タブ
   const k=(l,v,d,cls="")=>`<div class="kpi ${cls}"><div class="l">${l}</div><div class="v num ${v<0?"neg":""}">${yen(v)}</div><div class="d">${d}</div></div>`;
   $("kpis").innerHTML=
-    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月の引き落とし${yen(c.mOut)}${c.mIn?` ＋ 今月入るお金${yen(c.mIn)}`:""}。来月以降の請求は引いていません`,"main")+
+    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月の引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
     k("今の口座残高",c.bal,`${md(c.base)}時点`)+
     k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
