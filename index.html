@@ -151,6 +151,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
   <!-- 資産 -->
   <section id="tab-asset" class="stack" hidden>
     <div class="kpis" id="kpis"></div>
+    <div class="card"><h2>月ごとの引き落とし</h2><div id="byMonth"></div></div>
     <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
   </section>
 
@@ -187,7 +188,10 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
           <div><label class="f" for="fixName">名前</label><input class="t" id="fixName" placeholder="例：保険" required></div>
           <div><label class="f" for="fixAmt">金額</label><input class="t num" id="fixAmt" inputmode="numeric" required></div>
         </div>
-        <div><label class="f" for="fixDay">引き落とし日（毎月）</label><input class="t" id="fixDay" type="number" min="1" max="31" value="27" required></div>
+        <div><label class="f" for="fixDay">支払い日（毎月）</label><input class="t" id="fixDay" type="number" min="1" max="31" value="27" required></div>
+        <div><label class="f">払い方</label><div class="chips" id="fixCardChips"></div></div>
+        <div><label class="f" for="fixStart">開始月（空欄なら今月から）</label><input class="t" id="fixStart" type="month"></div>
+        <div class="hint">カード払いにすると、その日に使った扱いになり、実際の引き落としはそのカードの締め日ルールに沿って後日まとめて計算されます。</div>
         <button class="btn sub" type="submit">追加</button>
       </form>
     </div>
@@ -213,7 +217,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/13 18:25</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/19 11:03</p>
     </div>
   </section>
 </div>
@@ -230,7 +234,7 @@ const CARDS=["楽天","三井住友","PayPay","JCB","メルカード","口座"];
 const CATS=["食費","ガソリン","車","買い物","サブスク","消耗品","メルカリ","その他"];
 const $=id=>document.getElementById(id);
 const S={entries:[],incomes:[],fixed:[],settings:{}};
-let editingId=null, card="楽天", cat="食費";
+let editingId=null, card="楽天", cat="食費", fixCard="口座";
 
 const pad=n=>String(n).padStart(2,"0");
 const fmt=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -264,7 +268,8 @@ function compute(){
   }
   const ev=[];
   for(const b of bills.values()) ev.push({date:b.date,label:b.card==="口座"?"口座から支払い":b.card+"の引き落とし",amount:-b.amount});
-  const incs=S.incomes.filter(i=>i.date>base);
+  // 実際の額を保存して残高に反映済みの入金は、もう bal に入っているのでここでは数えない
+  const incs=S.incomes.filter(i=>i.date>base && !i.applied);
   for(const i of incs) ev.push({date:i.date,label:(i.name||"入金")+(hasActual(i)?"":"（見込み）"),amount:incVal(i),inc:true});
   // 固定費は、ほかの予定が続く月の終わりまで並べる（最低でも来月末まで）
   const b0=new Date(base+"T00:00");
@@ -272,11 +277,14 @@ function compute(){
   for(const e of ev) if(e.date>horizon) horizon=e.date;
   const hz=new Date(horizon+"T00:00"); horizon=fmt(new Date(hz.getFullYear(),hz.getMonth()+1,0));
   for(const f of S.fixed){
+    const fcard=f.card||"口座";
     for(let y=b0.getFullYear(),m=b0.getMonth();;m++){
       const last=new Date(y,m+1,0).getDate();
       const ds=fmt(new Date(y,m,Math.min(Number(f.day)||1,last)));
-      if(ds>horizon) break;
-      if(ds>base) ev.push({date:ds,label:f.name,amount:-(Number(f.amount)||0)});
+      const bd=billDate(ds,fcard);
+      if(bd>horizon) break;
+      const occMonth=`${y}-${pad(m+1)}`;
+      if(bd>base && (!f.start || occMonth>=f.start)) ev.push({date:bd,label:fcard==="口座"?f.name:`${f.name}（${fcard}）`,amount:-(Number(f.amount)||0)});
     }
   }
   ev.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.amount-b.amount));
@@ -289,7 +297,11 @@ function compute(){
   const t=today(); const monthEnd=fmt(new Date(+t.slice(0,4),+t.slice(5,7),0));
   let mOut=0,mIn=0; for(const e of ev){ if(e.date<=monthEnd){ if(e.amount<0) mOut-=e.amount; else mIn+=e.amount } }
   const room=bal-mOut;
-  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn};
+  // 月ごとの引き落とし合計（今後の予定分のみ）
+  const byMonthMap=new Map();
+  for(const e of ev) if(e.amount<0){ const mo=e.date.slice(0,7); byMonthMap.set(mo,(byMonthMap.get(mo)||0)-e.amount) }
+  const byMonth=[...byMonthMap.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([mo,total])=>({mo,total}));
+  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn,byMonth};
 }
 
 function chips(el,list,get,set){
@@ -322,6 +334,10 @@ function render(){
     k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
     k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
+  $("byMonth").innerHTML=c.byMonth.length?c.byMonth.map(x=>{
+    const [y,m]=x.mo.split("-"); const label=y===today().slice(0,4)?`${+m}月`:`${y}年${+m}月`;
+    return `<div class="item" style="cursor:default"><div class="what"><div>${label}</div></div><span class="num">${yen(x.total)}</span></div>`;
+  }).join(""):`<div class="empty">まだ予定がありません。</div>`;
   $("book").innerHTML=`<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
     <tr><td>${md(c.base)}</td><td>今の残高</td><td></td><td class="num">${yen(c.bal)}</td></tr>
     ${c.ev.map(e=>`<tr class="${e.inc?"inc":""} ${e.bal<0?"lowrow":""}"><td>${md(e.date)}</td><td>${esc(e.label)}</td><td class="num ${e.amount<0?"":"pos"}">${e.amount<0?yen(e.amount):"+"+yen(e.amount)}</td><td class="num ${e.bal<0?"neg":""}">${yen(e.bal)}</td></tr>`).join("")}
@@ -334,14 +350,14 @@ function render(){
   if(!$("incList").contains(document.activeElement)) $("incList").innerHTML=S.incomes.length?[...S.incomes].sort((a,b)=>a.date<b.date?-1:1).map(x=>{
     const exp=Number(x.amount)||0, act=hasActual(x)?Number(x.actual)||0:null, diff=act===null?null:act-exp;
     return `<div class="inc-row">
-      <div class="ghead"><span>${md(x.date)} ${esc(x.name||"入金")}${act===null?'<span class="tag">見込み</span>':'<span class="tag">実際の額</span>'}${x.date<=c.base?'<span class="tag">入金済み</span>':""}</span><button class="mini" data-del="incomes/${esc(x.id)}">削除</button></div>
+      <div class="ghead"><span>${md(x.date)} ${esc(x.name||"入金")}${x.applied?'<span class="tag">残高に反映済み</span>':(act===null?'<span class="tag">見込み</span>':'<span class="tag">実際の額</span>')}${x.date<=c.base&&!x.applied?'<span class="tag">入金済み</span>':""}</span><button class="mini" data-del="incomes/${esc(x.id)}">削除</button></div>
       <div class="inc-grid">
         <div><div class="l">見込み</div><div class="num">${yen(exp)}</div></div>
         <div><label class="l" for="act-${esc(x.id)}">実際に入った額</label><div class="act"><input class="t num" id="act-${esc(x.id)}" inputmode="numeric" placeholder="未入力" value="${act===null?"":act.toLocaleString("ja-JP")}"><button class="mini" type="button" data-act="${esc(x.id)}">保存</button></div></div>
       </div>
       ${diff===null?"":`<div class="l">見込みとの差 <span class="num ${diff<0?"neg":"pos"}">${diff<0?"":"+"}${yen(diff)}</span></div>`}
     </div>`}).join(""):`<div class="empty">まだありません。</div>`;
-  $("fixList").innerHTML=li(S.fixed,"fixed",x=>`毎月${Number(x.day)}日 ${esc(x.name)} <span class="num">${yen(Number(x.amount)||0)}</span>`)||`<div class="empty">まだ入っていません。追加すると「資産」の計算に毎月入ります。</div>`;
+  $("fixList").innerHTML=li(S.fixed,"fixed",x=>{const fc=x.card||"口座";const future=x.start&&x.start>c.base.slice(0,7);return `${future?`<span class="tag">${esc(x.start)}〜</span> `:""}毎月${Number(x.day)}日${fc!=="口座"?`・${esc(fc)}払い`:""} ${esc(x.name)} <span class="num">${yen(Number(x.amount)||0)}</span>`})||`<div class="empty">まだ入っていません。追加すると「資産」の計算に毎月入ります。</div>`;
 }
 
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
@@ -400,15 +416,30 @@ $("fInc").addEventListener("submit",async e=>{e.preventDefault();
   if(await write(()=>S.incomes.push({id:newId(),date:$("incDate").value,amount,name:$("incName").value.trim()||"入金"}),"追加しました")) $("incAmt").value=""});
 $("fFix").addEventListener("submit",async e=>{e.preventDefault();
   const amount=toNum($("fixAmt").value); if(!amount)return;
-  if(await write(()=>S.fixed.push({id:newId(),name:$("fixName").value.trim(),amount,day:Math.min(31,Math.max(1,toNum($("fixDay").value)||1))}),"追加しました")){$("fixName").value="";$("fixAmt").value=""}});
+  const start=$("fixStart").value||null;
+  if(await write(()=>S.fixed.push({id:newId(),name:$("fixName").value.trim(),amount,day:Math.min(31,Math.max(1,toNum($("fixDay").value)||1)),card:fixCard,start}),"追加しました")){$("fixName").value="";$("fixAmt").value="";$("fixStart").value="";fixCard="口座";chips($("fixCardChips"),CARDS,()=>fixCard,v=>fixCard=v)}});
 $("tab-set").addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("act-")){const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""}});
 $("tab-set").addEventListener("click",async e=>{
   const a=e.target.closest("[data-act]");
   if(a){const id=a.dataset.act, v=$("act-"+id).value.trim(); const inc=S.incomes.find(x=>x.id===id); if(!inc)return;
-    a.blur(); await write(()=>{ if(v==="") delete inc.actual; else inc.actual=toNum(v) }, v===""?"実際の額を消しました":"実際の額を保存しました"); return}
+    const newActual=v===""?null:toNum(v);
+    const oldApplied=inc.applied?(Number(inc.appliedAmount)||0):0;
+    const newApplied=newActual!=null?newActual:0;
+    const delta=newApplied-oldApplied;
+    const msg=delta?`口座残高を${delta>0?"+":""}${yen(delta)}反映しました`:(v===""?"実際の額を消しました":"実際の額を保存しました");
+    a.blur();
+    await write(()=>{
+      if(v===""){ delete inc.actual; delete inc.applied; delete inc.appliedAmount }
+      else{ inc.actual=newActual; inc.applied=true; inc.appliedAmount=newActual }
+      if(delta) S.settings={...S.settings,balance:(Number(S.settings.balance)||0)+delta};
+    }, msg); return}
   const b=e.target.closest("[data-del]");if(!b)return;
   if(!b.dataset.armed){b.dataset.armed="1";b.textContent="本当に削除";b.classList.add("danger");return}
-  const [c,id]=b.dataset.del.split("/"); await write(()=>{S[c]=coll(c).filter(x=>x.id!==id)},"削除しました")});
+  const [c,id]=b.dataset.del.split("/");
+  const target=c==="incomes"?S.incomes.find(x=>x.id===id):null;
+  const revert=target&&target.applied?-(Number(target.appliedAmount)||0):0;
+  const msg=revert?`削除し、口座残高を${yen(revert)}反映しました`:"削除しました";
+  await write(()=>{S[c]=coll(c).filter(x=>x.id!==id); if(revert) S.settings={...S.settings,balance:(Number(S.settings.balance)||0)+revert}},msg)});
 
 // タブ
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
@@ -420,6 +451,7 @@ try{const t=localStorage.getItem("tab");if(t)document.querySelector(`nav.tabs bu
 
 chips($("cardChips"),CARDS,()=>card,v=>card=v);
 chips($("catChips"),CATS,()=>cat,v=>cat=v);
+chips($("fixCardChips"),CARDS,()=>fixCard,v=>fixCard=v);
 $("dt").value=today(); $("incDate").value=today();
 updateHint(); render();
 
