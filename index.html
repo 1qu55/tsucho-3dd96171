@@ -173,9 +173,12 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
       <form id="fInc" class="stack">
         <div class="row2">
           <div><label class="f" for="incDate">入る日</label><input class="t" id="incDate" type="date" required></div>
-          <div><label class="f" for="incAmt">見込み額</label><input class="t num" id="incAmt" inputmode="numeric" required></div>
+          <div><label class="f" for="incAmt">見込み額</label><input class="t num" id="incAmt" inputmode="numeric"></div>
         </div>
-        <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
+        <div class="row2">
+          <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
+          <div><label class="f" for="incAct">実際に入った額（入ったら）</label><input class="t num" id="incAct" inputmode="numeric" placeholder="まだなら空欄"></div>
+        </div>
         <button class="btn sub" type="submit">追加</button>
       </form>
     </div>
@@ -217,7 +220,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/20 22:55</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/20 23:05</p>
     </div>
   </section>
 </div>
@@ -420,10 +423,14 @@ $("fBal").addEventListener("submit",async e=>{e.preventDefault();
   const v=$("bal").value.trim(); if(v===""){$("bal").focus();return}
   await write(()=>{S.settings={...S.settings,balance:toNum(v),baseDate:$("balDate").value||today()}},"残高を更新しました")});
 $("bal").addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=e.target.value.trim()===""?"":n.toLocaleString("ja-JP")});
-for(const id of ["incAmt","fixAmt"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+for(const id of ["incAmt","incAct","fixAmt"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
 $("fInc").addEventListener("submit",async e=>{e.preventDefault();
-  const amount=toNum($("incAmt").value); if(!amount)return;
-  if(await write(()=>S.incomes.push({id:newId(),date:$("incDate").value,amount,name:$("incName").value.trim()||"入金"}),"追加しました")) $("incAmt").value=""});
+  const act=toNum($("incAct").value), amount=toNum($("incAmt").value)||act; if(!amount){$("incAmt").focus();return}
+  // 実際の額も入れたら、その場で口座残高に足す（一覧の「保存」と同じ扱い）
+  const msg=act?`追加して、口座残高に+${yen(act)}反映しました`:"追加しました";
+  if(await write(()=>{const inc={id:newId(),date:$("incDate").value,amount,name:$("incName").value.trim()||"入金"};
+    if(act){inc.actual=act;inc.applied=true;inc.appliedAmount=act;S.settings={...S.settings,balance:(Number(S.settings.balance)||0)+act}}
+    S.incomes.push(inc)},msg)){$("incAmt").value="";$("incAct").value=""}});
 $("fFix").addEventListener("submit",async e=>{e.preventDefault();
   const amount=toNum($("fixAmt").value); if(!amount)return;
   const start=$("fixStart").value||null;
