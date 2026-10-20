@@ -217,7 +217,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/19 11:03</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/20 22:55</p>
     </div>
   </section>
 </div>
@@ -257,51 +257,60 @@ const incVal=i=>hasActual(i)?Number(i.actual)||0:Number(i.amount)||0;
 const baseDate=()=>S.settings.baseDate||today();
 
 function compute(){
-  const base=baseDate(), bal=Number(S.settings.balance)||0;
-  const bills=new Map(); const paid=[];
+  const base=baseDate(), bal0=Number(S.settings.balance)||0, t=today();
+  // 引き落とし日が来たもの（残高を入れた日の翌日〜今日）は、自動で残高から引く
+  const bills=new Map(); const paid=[]; let settledOut=0;
   for(const e of S.entries){
     const bd=billDate(e.date,e.card);
     if(bd<=base){paid.push(e);continue}
+    if(bd<=t){paid.push(e);settledOut+=Number(e.amount)||0;continue}
     const k=bd+"|"+e.card;
     if(!bills.has(k)) bills.set(k,{date:bd,card:e.card,amount:0,items:[]});
     const b=bills.get(k); b.amount+=Number(e.amount)||0; b.items.push(e);
   }
   const ev=[];
   for(const b of bills.values()) ev.push({date:b.date,label:b.card==="口座"?"口座から支払い":b.card+"の引き落とし",amount:-b.amount});
-  // 実際の額を保存して残高に反映済みの入金は、もう bal に入っているのでここでは数えない
+  // 実際の額を保存して残高に反映済みの入金は、もう残高に入っているのでここでは数えない
+  // 日付を過ぎてもまだ反映していない入金は、今日の行に「未反映」として残す
   const incs=S.incomes.filter(i=>i.date>base && !i.applied);
-  for(const i of incs) ev.push({date:i.date,label:(i.name||"入金")+(hasActual(i)?"":"（見込み）"),amount:incVal(i),inc:true});
+  for(const i of incs){
+    const late=i.date<=t;
+    ev.push({date:late?t:i.date,label:(i.name||"入金")+(late?`（${md(i.date)}分・未反映）`:hasActual(i)?"":"（見込み）"),amount:incVal(i),inc:true});
+  }
   // 固定費は、ほかの予定が続く月の終わりまで並べる（最低でも来月末まで）
-  const b0=new Date(base+"T00:00");
-  let horizon=fmt(new Date(b0.getFullYear(),b0.getMonth()+2,0));
+  const b0=new Date(base+"T00:00"), t0=new Date(t+"T00:00");
+  let horizon=fmt(new Date(t0.getFullYear(),t0.getMonth()+2,0));
   for(const e of ev) if(e.date>horizon) horizon=e.date;
   const hz=new Date(horizon+"T00:00"); horizon=fmt(new Date(hz.getFullYear(),hz.getMonth()+1,0));
   for(const f of S.fixed){
     const fcard=f.card||"口座";
-    for(let y=b0.getFullYear(),m=b0.getMonth();;m++){
+    for(let y=b0.getFullYear(),m=b0.getMonth()-1;;m++){
       const last=new Date(y,m+1,0).getDate();
       const ds=fmt(new Date(y,m,Math.min(Number(f.day)||1,last)));
       const bd=billDate(ds,fcard);
       if(bd>horizon) break;
-      const occMonth=`${y}-${pad(m+1)}`;
-      if(bd>base && (!f.start || occMonth>=f.start)) ev.push({date:bd,label:fcard==="口座"?f.name:`${f.name}（${fcard}）`,amount:-(Number(f.amount)||0)});
+      const occMonth=ds.slice(0,7);
+      if(bd<=base || (f.start && occMonth<f.start)) continue;
+      const amt=Number(f.amount)||0;
+      if(bd<=t){settledOut+=amt;continue}
+      ev.push({date:bd,label:fcard==="口座"?f.name:`${f.name}（${fcard}）`,amount:-amt});
     }
   }
+  const bal=bal0-settledOut;
   ev.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.amount-b.amount));
   let run=bal, low=null;
   for(const e of ev){run+=e.amount;e.bal=run;if(!low||run<low.bal)low=e}
   const unpaid=[...bills.values()].reduce((s,b)=>s+b.amount,0);
   const incomeSum=incs.reduce((s,i)=>s+incVal(i),0);
-  // 今日カードで使った分が最初に引き落とされる日以降で、一番少ない残高
-  // あと使える額：今月中の引き落とし・固定費・入金だけを反映（来月以降の請求は引かない）
-  const t=today(); const monthEnd=fmt(new Date(+t.slice(0,4),+t.slice(5,7),0));
+  // あと使える額：今月まだ残っている引き落としだけを引く（給与と来月以降の請求は入れない）
+  const monthEnd=fmt(new Date(t0.getFullYear(),t0.getMonth()+1,0));
   let mOut=0,mIn=0; for(const e of ev){ if(e.date<=monthEnd){ if(e.amount<0) mOut-=e.amount; else mIn+=e.amount } }
   const room=bal-mOut;
   // 月ごとの引き落とし合計（今後の予定分のみ）
   const byMonthMap=new Map();
   for(const e of ev) if(e.amount<0){ const mo=e.date.slice(0,7); byMonthMap.set(mo,(byMonthMap.get(mo)||0)-e.amount) }
   const byMonth=[...byMonthMap.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([mo,total])=>({mo,total}));
-  return {base,bal,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn,byMonth};
+  return {base,bal0,bal,settledOut,today:t,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn,byMonth};
 }
 
 function chips(el,list,get,set){
@@ -317,7 +326,7 @@ function updateHint(){
 
 function render(){
   const c=compute(); nag();
-  $("asof").textContent=`残高は${md(c.base)}時点`;
+  $("asof").textContent=c.settledOut?`${md(c.base)}の残高から自動計算`:`残高は${md(c.base)}時点`;
   // 記録タブ
   const row=e=>`<div class="item" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")}${e.date>today()?'<span class="tag">予定</span>':""}</div><div>${md(e.date)} · ${esc(e.card)}${e.memo?" · "+esc(e.memo):""}</div></div><span class="num">${yen(Number(e.amount)||0)}</span></div>`;
   $("upcoming").innerHTML=c.bills.length?c.bills.map(b=>`<div class="group"><div class="ghead"><span>${md(b.date)} ${esc(b.card==="口座"?"口座から":b.card)}</span><span class="num">${yen(b.amount)}</span></div>${b.items.sort((a,b)=>a.date<b.date?1:-1).map(row).join("")}</div>`).join("")
@@ -329,8 +338,8 @@ function render(){
   // 資産タブ
   const k=(l,v,d,cls="")=>`<div class="kpi ${cls}"><div class="l">${l}</div><div class="v num ${v<0?"neg":""}">${yen(v)}</div><div class="d">${d}</div></div>`;
   $("kpis").innerHTML=
-    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月の引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
-    k("今の口座残高",c.bal,`${md(c.base)}時点`)+
+    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月これからの引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
+    k("今の口座残高",c.bal,c.settledOut?`${md(c.base)}の残高${yen(c.bal0)}から、引き落とし済み${yen(c.settledOut)}を引いた額`:`${md(c.base)}時点`)+
     k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
     k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
@@ -339,7 +348,8 @@ function render(){
     return `<div class="item" style="cursor:default"><div class="what"><div>${label}</div></div><span class="num">${yen(x.total)}</span></div>`;
   }).join(""):`<div class="empty">まだ予定がありません。</div>`;
   $("book").innerHTML=`<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
-    <tr><td>${md(c.base)}</td><td>今の残高</td><td></td><td class="num">${yen(c.bal)}</td></tr>
+    ${c.settledOut?`<tr><td>${md(c.base)}</td><td>入力した残高</td><td></td><td class="num">${yen(c.bal0)}</td></tr><tr><td>〜${md(c.today)}</td><td>引き落とし済み</td><td class="num">${yen(-c.settledOut)}</td><td></td></tr>`:""}
+    <tr><td>${md(c.today)}</td><td>今の残高</td><td></td><td class="num ${c.bal<0?"neg":""}">${yen(c.bal)}</td></tr>
     ${c.ev.map(e=>`<tr class="${e.inc?"inc":""} ${e.bal<0?"lowrow":""}"><td>${md(e.date)}</td><td>${esc(e.label)}</td><td class="num ${e.amount<0?"":"pos"}">${e.amount<0?yen(e.amount):"+"+yen(e.amount)}</td><td class="num ${e.bal<0?"neg":""}">${yen(e.bal)}</td></tr>`).join("")}
   </tbody></table>${c.low&&c.low.bal<0?`<p class="neg" style="font-size:13px;margin:10px 0 0">${md(c.low.date)}に残高が${yen(c.low.bal)}まで下がります。この日より前に、足りない分を口座に入れておく必要があります。</p>`:""}`;
 
