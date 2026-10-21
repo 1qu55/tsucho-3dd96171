@@ -204,6 +204,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
       <h2>バックアップ</h2>
       <p class="muted" style="font-size:13px;margin:0">記録はこのスマホの中だけに保存されます。機種変更やSafariのデータ消去で消えるので、ときどき書き出して、ファイルアプリのOneDriveなどに保存しておいてください。</p>
       <span class="muted" id="lastBk" style="font-size:12px"></span>
+      <div id="backupList"></div>
       <button class="btn sub" id="exportBtn" type="button">バックアップを書き出す</button>
       <label class="btn sub" for="importFile" style="text-align:center">バックアップから戻す</label>
       <input id="importFile" type="file" accept=".json,application/json" hidden>
@@ -373,11 +374,74 @@ function render(){
     </div>`}).join(""):`<div class="empty">まだありません。</div>`;
   $("fixList").innerHTML=li(S.fixed,"fixed",x=>{const fc=x.card||"口座";const future=x.start&&x.start>c.base.slice(0,7);return `${future?`<span class="tag">${esc(x.start)}〜</span> `:""}毎月${Number(x.day)}日${fc!=="口座"?`・${esc(fc)}払い`:""} ${esc(x.name)} <span class="num">${yen(Number(x.amount)||0)}</span>`})||`<div class="empty">まだ入っていません。追加すると「資産」の計算に毎月入ります。</div>`;
 }
+const backups=JSON.parse(
+  localStorage.getItem(BACKUP_KEY)||"[]"
+);
 
+const backupList=$("backupList");
+
+if(backupList){
+  backupList.innerHTML=backups.length
+    ? backups.map((b,i)=>`
+      <div class="item" style="cursor:default">
+        <div class="what">
+          <div>
+            自動保存 ${i+1}
+          </div>
+          <div>
+            ${new Date(b.createdAt).toLocaleString("ja-JP")}
+          </div>
+        </div>
+        <button
+          class="mini"
+          data-restore="${i}">
+          復元
+        </button>
+      </div>
+    `).join("")
+    : '<div class="empty">自動バックアップなし</div>';
+}
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
 const KEY="ikuTsucho.v1";
+const BACKUP_KEY="ikuTsuchoBackup.v1";
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){S.entries=d.entries||[];S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}}}catch{}}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify({entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings}));return true}catch{return false}}
+function persist(){
+  try{
+    const current={
+      entries:S.entries,
+      incomes:S.incomes,
+      fixed:S.fixed,
+      settings:S.settings
+    };
+
+    const backups=JSON.parse(
+      localStorage.getItem(BACKUP_KEY)||"[]"
+    );
+
+    backups.unshift({
+      createdAt:Date.now(),
+      data:JSON.parse(JSON.stringify(current))
+    });
+
+    while(backups.length>5){
+      backups.pop();
+    }
+
+    localStorage.setItem(
+      BACKUP_KEY,
+      JSON.stringify(backups)
+    );
+
+    localStorage.setItem(
+      KEY,
+      JSON.stringify(current)
+    );
+
+    return true;
+  }catch{
+    return false;
+  }
+}
 const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
 const coll=n=>({entries:S.entries,incomes:S.incomes,fixed:S.fixed}[n]);
 async function write(fn,ok){
@@ -505,7 +569,35 @@ let pendingImport=null;
 $("importOk").onclick=async()=>{const d=pendingImport;if(!d)return;
   if(await write(()=>{S.entries=d.entries;S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}},"バックアップから戻しました")){pendingImport=null;$("importConfirm").hidden=true}};
 $("importNo").onclick=()=>{pendingImport=null;$("importConfirm").hidden=true};
+document.addEventListener("click",e=>{
+  const btn=e.target.closest("[data-restore]");
+  if(!btn) return;
 
+  const backups=JSON.parse(
+    localStorage.getItem(BACKUP_KEY)||"[]"
+  );
+
+  const backup=
+    backups[Number(btn.dataset.restore)];
+
+  if(!backup) return;
+
+  const d=backup.data;
+
+  S.entries=d.entries||[];
+  S.incomes=d.incomes||[];
+  S.fixed=d.fixed||[];
+  S.settings=d.settings||{};
+
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(d)
+  );
+
+  render();
+
+  toast("自動バックアップから復元しました");
+});
 load(); render();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch{}
 </script>
