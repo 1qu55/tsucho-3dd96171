@@ -343,7 +343,8 @@ function render(){
   $("kpis").innerHTML=
     k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月これからの引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
     k("今の口座残高",c.bal,c.settledOut?`${md(c.base)}の残高${yen(c.bal0)}から、引き落とし済み${yen(c.settledOut)}を引いた額`:`${md(c.base)}時点`)+
-    k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
+  　k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
+    k("総請求額",c.unpaid,"まだ引き落とされていないカード請求")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
     k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
   $("byMonth").innerHTML=c.byMonth.length?c.byMonth.map(x=>{
