@@ -126,6 +126,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
   <!-- 記録 -->
   <section id="tab-rec" class="stack">
     <div id="nag" class="notice" hidden style="display:flex;align-items:center;gap:10px"><span id="nagText" style="flex:1;min-width:0"></span><button class="mini" id="nagBtn" type="button">今すぐ保存</button></div>
+    <div id="settleNote" class="notice" hidden style="display:flex;align-items:flex-start;gap:10px"><div id="settleText" style="flex:1;min-width:0"></div><button class="mini" id="settleOk" type="button">OK</button></div>
     <form id="f" class="card stack" autocomplete="off">
       <div>
         <label class="f" for="amt">金額</label>
@@ -163,6 +164,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <div><label class="f" for="bal">残高（円）</label><input class="t num" id="bal" inputmode="numeric"></div>
         <div><label class="f" for="balDate">確認した日</label><input class="t" id="balDate" type="date"></div>
       </div>
+      <p class="muted" id="balNote" style="font-size:12px;margin:0"></p>
       <button class="btn" type="submit">残高を更新</button>
     </form>
 
@@ -209,6 +211,12 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
       <input id="importFile" type="file" accept=".json,application/json" hidden>
       <div id="importConfirm" class="notice stack" hidden><span id="importMsg"></span><div class="btns"><button class="btn" id="importOk" type="button">戻す</button><button class="btn sub" id="importNo" type="button">やめる</button></div></div>
     </div>
+
+    <div class="card stack">
+      <h2>自動バックアップ</h2>
+      <p class="muted" style="font-size:13px;margin:0">毎日はじめて開いたときと、その日はじめて記録を変えたときに、このスマホの中へ自動で保存します（14日分）。間違えて消したり変えたりしたときは、ここから戻せます。Safariのデータ消去や機種変更には効かないので、上の「書き出す」もときどき続けてください。</p>
+      <div id="snapList"></div>
+    </div>
     <div class="card">
       <h2>カードの締め日と引き落とし日</h2>
       <div class="rules">
@@ -220,7 +228,7 @@ nav.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/20 23:05</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：10/24 自動バックアップ・引き落とし反映</p>
     </div>
   </section>
 </div>
@@ -263,10 +271,13 @@ function compute(){
   const base=baseDate(), bal0=Number(S.settings.balance)||0, t=today();
   // 引き落とし日が来たもの（残高を入れた日の翌日〜今日）は、自動で残高から引く
   const bills=new Map(); const paid=[]; let settledOut=0;
+  // 引き落とし済みを「日付＋カード」ごとにまとめて、通帳とお知らせに出す
+  const settledMap=new Map();
+  const settle=(date,label,amt)=>{settledOut+=amt;const k=date+"|"+label;if(!settledMap.has(k))settledMap.set(k,{date,label,amount:0});settledMap.get(k).amount+=amt};
   for(const e of S.entries){
     const bd=billDate(e.date,e.card);
     if(bd<=base){paid.push(e);continue}
-    if(bd<=t){paid.push(e);settledOut+=Number(e.amount)||0;continue}
+    if(bd<=t){paid.push(e);settle(bd,e.card==="口座"?"口座から支払い":e.card+"の引き落とし",Number(e.amount)||0);continue}
     const k=bd+"|"+e.card;
     if(!bills.has(k)) bills.set(k,{date:bd,card:e.card,amount:0,items:[]});
     const b=bills.get(k); b.amount+=Number(e.amount)||0; b.items.push(e);
@@ -295,7 +306,7 @@ function compute(){
       const occMonth=ds.slice(0,7);
       if(bd<=base || (f.start && occMonth<f.start)) continue;
       const amt=Number(f.amount)||0;
-      if(bd<=t){settledOut+=amt;continue}
+      if(bd<=t){settle(bd,fcard==="口座"?f.name:`${f.name}（${fcard}）`,amt);continue}
       ev.push({date:bd,label:fcard==="口座"?f.name:`${f.name}（${fcard}）`,amount:-amt});
     }
   }
@@ -313,7 +324,8 @@ function compute(){
   const byMonthMap=new Map();
   for(const e of ev) if(e.amount<0){ const mo=e.date.slice(0,7); byMonthMap.set(mo,(byMonthMap.get(mo)||0)-e.amount) }
   const byMonth=[...byMonthMap.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([mo,total])=>({mo,total}));
-  return {base,bal0,bal,settledOut,today:t,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn,byMonth};
+  const settled=[...settledMap.values()].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  return {base,bal0,bal,settledOut,settled,today:t,bills:[...bills.values()].sort((a,b)=>a.date<b.date?-1:1),paid,ev,low,unpaid,incomeSum,final:run,room,mOut,mIn,byMonth};
 }
 
 function chips(el,list,get,set){
@@ -343,7 +355,7 @@ function render(){
   $("kpis").innerHTML=
     k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月これからの引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
     k("今の口座残高",c.bal,c.settledOut?`${md(c.base)}の残高${yen(c.bal0)}から、引き落とし済み${yen(c.settledOut)}を引いた額`:`${md(c.base)}時点`)+
-  　k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
+    k("実際の資産",c.bal-c.unpaid,"カードの未払いを全部払ったら残る額")+
     k("総請求額",c.unpaid,"まだ引き落とされていないカード請求")+
     k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
     k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
@@ -352,14 +364,27 @@ function render(){
     return `<div class="item" style="cursor:default"><div class="what"><div>${label}</div></div><span class="num">${yen(x.total)}</span></div>`;
   }).join(""):`<div class="empty">まだ予定がありません。</div>`;
   $("book").innerHTML=`<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
-    ${c.settledOut?`<tr><td>${md(c.base)}</td><td>入力した残高</td><td></td><td class="num">${yen(c.bal0)}</td></tr><tr><td>〜${md(c.today)}</td><td>引き落とし済み</td><td class="num">${yen(-c.settledOut)}</td><td></td></tr>`:""}
+    ${c.settledOut?`<tr><td>${md(c.base)}</td><td>入力した残高</td><td></td><td class="num">${yen(c.bal0)}</td></tr>`+(()=>{let r=c.bal0;return c.settled.map(s=>{r-=s.amount;return `<tr><td>${md(s.date)}</td><td>${esc(s.label)}<span class="tag">済</span></td><td class="num">${yen(-s.amount)}</td><td class="num ${r<0?"neg":""}">${yen(r)}</td></tr>`}).join("")})():""}
     <tr><td>${md(c.today)}</td><td>今の残高</td><td></td><td class="num ${c.bal<0?"neg":""}">${yen(c.bal)}</td></tr>
     ${c.ev.map(e=>`<tr class="${e.inc?"inc":""} ${e.bal<0?"lowrow":""}"><td>${md(e.date)}</td><td>${esc(e.label)}</td><td class="num ${e.amount<0?"":"pos"}">${e.amount<0?yen(e.amount):"+"+yen(e.amount)}</td><td class="num ${e.bal<0?"neg":""}">${yen(e.bal)}</td></tr>`).join("")}
   </tbody></table>${c.low&&c.low.bal<0?`<p class="neg" style="font-size:13px;margin:10px 0 0">${md(c.low.date)}に残高が${yen(c.low.bal)}まで下がります。この日より前に、足りない分を口座に入れておく必要があります。</p>`:""}`;
 
   // 設定タブ
-  if(document.activeElement!==$("bal")) $("bal").value=(S.settings.balance??"")===""?"":Number(S.settings.balance).toLocaleString("ja-JP");
-  if(document.activeElement!==$("balDate")) $("balDate").value=S.settings.baseDate||today();
+  // 残高欄には、引き落とし済みを引いたあとの「今の残高」を出す
+  const noBal=(S.settings.balance??"")==="";
+  if(!$("fBal").contains(document.activeElement)){
+    $("bal").value=noBal?"":Math.round(c.bal).toLocaleString("ja-JP");
+    $("balDate").value=c.settledOut?c.today:(S.settings.baseDate||today());
+  }
+  $("balNote").textContent=noBal?"":c.settledOut
+    ?`${md(c.base)}に入れた残高${yen(c.bal0)}から、引き落とし済み${yen(c.settledOut)}を自動で引いた額です。銀行アプリの額と違ったら、その額に直して更新してください。`
+    :"カードや固定費の引き落とし日が来ると、この残高から自動で引かれます。";
+  // 新しく引き落とされた分のお知らせ
+  const seen=S.settings.seenSettle||"";
+  const fresh=c.settled.filter(s=>s.date>seen);
+  $("settleNote").hidden=!fresh.length;
+  if(fresh.length) $("settleText").innerHTML=`<b>引き落としを残高から引きました</b><br>`+fresh.map(s=>`${md(s.date)} ${esc(s.label)} <span class="num">${yen(-s.amount)}</span>`).join("<br>")+`<br>今の残高 <span class="num">${yen(c.bal)}</span>`;
+  renderSnaps();
   const li=(arr,coll,txt)=>arr.length?arr.map(x=>`<div class="item" style="cursor:default"><div class="what"><div>${txt(x)}</div></div><button class="mini" data-del="${coll}/${esc(x.id)}">削除</button></div>`).join(""):"";
   if(!$("incList").contains(document.activeElement)) $("incList").innerHTML=S.incomes.length?[...S.incomes].sort((a,b)=>a.date<b.date?-1:1).map(x=>{
     const exp=Number(x.amount)||0, act=hasActual(x)?Number(x.actual)||0:null, diff=act===null?null:act-exp;
@@ -378,9 +403,31 @@ function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTime
 const KEY="ikuTsucho.v1";
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){S.entries=d.entries||[];S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}}}catch{}}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify({entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings}));return true}catch{return false}}
+// 自動バックアップ：1日1回、このスマホの中に今のデータを丸ごと残す（14日分）
+const SNAP_KEY="ikuTsucho.snaps.v1", SNAP_MAX=14;
+function snaps(){try{const a=JSON.parse(localStorage.getItem(SNAP_KEY)||"[]");return Array.isArray(a)?a:[]}catch{return []}}
+function snapshot(force,reason){
+  try{
+    if(!S.entries.length&&!S.incomes.length&&!S.fixed.length&&(S.settings.balance??"")==="") return;
+    const list=snaps(), d=today();
+    if(!force&&list.some(x=>x.day===d)) return;
+    list.unshift({day:d,at:Date.now(),reason:reason||"",data:{entries:S.entries,incomes:S.incomes,fixed:S.fixed,settings:S.settings}});
+    while(list.length>SNAP_MAX) list.pop();
+    // 容量が足りなければ古いものから消して入れ直す
+    for(;;){try{localStorage.setItem(SNAP_KEY,JSON.stringify(list));break}catch{if(list.length<=1)break;list.pop()}}
+  }catch{}
+}
+function renderSnaps(){
+  const el=$("snapList"); if(!el) return;
+  const list=snaps();
+  el.innerHTML=list.length?list.map((x,i)=>{const t=new Date(x.at);const d=x.data||{};
+    return `<div class="item" style="cursor:default"><div class="what"><div>${md(fmt(t))} ${pad(t.getHours())}:${pad(t.getMinutes())}${x.reason?`<span class="tag">${esc(x.reason)}</span>`:""}</div><div>記録${(d.entries||[]).length}件・入金${(d.incomes||[]).length}件・固定費${(d.fixed||[]).length}件</div></div><button class="mini" type="button" data-snap="${i}">この時点に戻す</button></div>`}).join("")
+    :`<div class="empty">まだありません。明日以降、開くたびに1日1つずつ増えます。</div>`;
+}
 const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
 const coll=n=>({entries:S.entries,incomes:S.incomes,fixed:S.fixed}[n]);
 async function write(fn,ok){
+  snapshot(false); // その日はじめての変更なら、変える前の状態を残しておく
   try{fn()}catch{toast("保存できませんでした");return false}
   if(!persist()){toast("このブラウザでは保存できません");return false}
   render(); if(ok) toast(ok); return true;
@@ -437,7 +484,15 @@ $("fFix").addEventListener("submit",async e=>{e.preventDefault();
   const start=$("fixStart").value||null;
   if(await write(()=>S.fixed.push({id:newId(),name:$("fixName").value.trim(),amount,day:Math.min(31,Math.max(1,toNum($("fixDay").value)||1)),card:fixCard,start}),"追加しました")){$("fixName").value="";$("fixAmt").value="";$("fixStart").value="";fixCard="口座";chips($("fixCardChips"),CARDS,()=>fixCard,v=>fixCard=v)}});
 $("tab-set").addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("act-")){const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""}});
+$("settleOk").onclick=()=>{const c=compute();S.settings={...S.settings,seenSettle:c.settled.length?c.settled[c.settled.length-1].date:today()};persist();render()};
 $("tab-set").addEventListener("click",async e=>{
+  const sn=e.target.closest("[data-snap]");
+  if(sn){
+    if(!sn.dataset.armed){sn.dataset.armed="1";sn.textContent="本当に戻す";sn.classList.add("danger");return}
+    const x=snaps()[Number(sn.dataset.snap)]; if(!x||!x.data){toast("戻せませんでした");return}
+    const d=x.data; snapshot(true,"戻す前");
+    await write(()=>{S.entries=d.entries||[];S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}},`${md(fmt(new Date(x.at)))}の状態に戻しました`);
+    return}
   const a=e.target.closest("[data-act]");
   if(a){const id=a.dataset.act, v=$("act-"+id).value.trim(); const inc=S.incomes.find(x=>x.id===id); if(!inc)return;
     const newActual=v===""?null:toNum(v);
@@ -503,10 +558,13 @@ $("importFile").onchange=async e=>{
 };
 let pendingImport=null;
 $("importOk").onclick=async()=>{const d=pendingImport;if(!d)return;
+  snapshot(true,"戻す前");
   if(await write(()=>{S.entries=d.entries;S.incomes=d.incomes||[];S.fixed=d.fixed||[];S.settings=d.settings||{}},"バックアップから戻しました")){pendingImport=null;$("importConfirm").hidden=true}};
 $("importNo").onclick=()=>{pendingImport=null;$("importConfirm").hidden=true};
 
-load(); render();
+load(); snapshot(false); render();
+// ホーム画面のアプリは開きっぱなしで日をまたぐことがあるので、戻ってきたときにも確認する
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){snapshot(false);render()}});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch{}
 </script>
 </body>
