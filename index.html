@@ -128,6 +128,28 @@ h3:first-child{margin-top:0}
 .bill{border-top:1px dashed var(--line);padding-block:8px;display:flex;flex-direction:column;gap:6px}
 .bill .top2{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:14px}
 .bill .act input{max-width:9em}
+.rulemap{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:6px 6px;align-items:center;font-size:13px}
+.rulemap select{padding:6px 4px;font-size:14px;min-width:0}
+.rulemap .h{font-size:11px;color:var(--muted)}
+/* chart: single-series bars; negative assets drop below the zero line in the status red */
+:root{--chart:#00806a;--chart-neg:#c0291c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chart:#2fa88e;--chart-neg:#e0604f}}
+:root[data-theme="dark"]{--chart:#2fa88e;--chart-neg:#e0604f}
+.chart{position:relative}
+.chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .zero{stroke:var(--muted);stroke-width:1}
+.chart text{fill:var(--muted);font-family:var(--f-num);font-size:10px}
+.chart text.cur{fill:var(--ink);font-weight:600}
+.chart .hit{fill:transparent;cursor:pointer}
+.chart .sel{fill:var(--accent-soft)}
+.chart-title{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;margin:14px 0 4px}
+.readout{background:var(--accent-soft);border-radius:9px;padding:8px 10px;font-size:13px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.mtable th{font-weight:500;color:var(--muted);font-size:11px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
+.mtable th:first-child,.mtable td:first-child{text-align:left}
+.mtable td{padding:6px;border-bottom:1px dashed var(--line);text-align:right}
+.mtable tr.cur td{font-weight:700}
 .tag.warn{background:var(--warn-soft);color:var(--ink)}
 </style>
 </head>
@@ -172,7 +194,14 @@ h3:first-child{margin-top:0}
     <div class="card"><h2>カードの請求額</h2>
       <p class="muted" style="font-size:12px;margin:0 0 6px">カード会社の明細で請求額が決まったら「確定額」に入れてください。計算はその額を使います。</p>
       <div id="bills"></div></div>
-    <div class="card"><h2>月ごとの引き落とし</h2><div id="byMonth"></div></div>
+    <div class="card"><h2>月ごとの請求額と資産</h2>
+      <div class="readout" id="readout"></div>
+      <div class="chart-title"><span>請求額</span><span class="muted" style="font-weight:400">その月に引き落とされる合計</span></div>
+      <div class="chart" id="chBills"></div>
+      <div class="chart-title"><span>月末の資産</span><span class="muted" style="font-weight:400">全口座の月末残高（見込み）</span></div>
+      <div class="chart" id="chAssets"></div>
+      <div style="overflow-x:auto"><table class="mtable" id="byMonth"></table></div>
+    </div>
     <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
   </section>
 
@@ -248,16 +277,11 @@ h3:first-child{margin-top:0}
     </div>
     <div class="card">
       <h2>カードの締め日と引き落とし日</h2>
-      <div class="rules">
-        <span>楽天</span><span>月末締め → 翌月27日</span>
-        <span>三井住友</span><span>月末締め → 翌月26日</span>
-        <span>PayPay</span><span>月末締め → 翌月27日</span>
-        <span>JCB</span><span>15日締め → 翌月10日</span>
-        <span>メルカード</span><span>月末締め → 翌月末</span>
-        <span>口座</span><span>その日に口座から出る</span>
-      </div>
+      <p class="muted" style="font-size:12px;margin:0 0 8px">変えると、まだ引き落とされていない分の引き落とし日がすべて計算し直されます。</p>
+      <div class="rulemap" id="ruleMap"></div>
+      <p class="muted" style="font-size:13px;margin:8px 0 0">口座：その日に口座から出る</p>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数口座・請求額・分割払い（2）</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 締め日設定・月ごとのグラフ</p>
     </div>
   </section>
 </div>
@@ -286,13 +310,17 @@ const toNum=v=>{const n=parseInt(String(v).replace(/[^\d]/g,""),10);return isNaN
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const comma=n=>n?Number(n).toLocaleString("ja-JP"):"";
 
+// カードごとの締め日・引き落とし日。close/pay の 0 は「末日」、months は締めた月から何か月後に払うか
+const RULE_DEFAULT={"楽天":{close:0,months:1,pay:27},"三井住友":{close:0,months:1,pay:26},"PayPay":{close:0,months:1,pay:27},"JCB":{close:15,months:1,pay:10},"メルカード":{close:0,months:1,pay:1}};
+const rule=c=>({...RULE_DEFAULT[c],...((S.settings.cardRules||{})[c]||{})});
+const dayLabel=n=>n?`${n}日`:"末日";
 function billDate(ds,c){
-  const [y,m,d]=ds.split("-").map(Number);
   if(c==="口座") return ds;
-  if(c==="JCB") return fmt(new Date(y,m-1+(d<=15?1:2),10));
-  if(c==="三井住友") return fmt(new Date(y,m,26));
-  if(c==="メルカード") return fmt(new Date(y,m+1,0));
-  return fmt(new Date(y,m,27));
+  const [y,m,d]=ds.split("-").map(Number), r=rule(c);
+  const closeM=m-1+(r.close&&d>r.close?1:0);          // 締めた月（0始まり）
+  const pm=closeM+(Number(r.months)||1);
+  const last=new Date(y,pm+1,0).getDate();
+  return fmt(new Date(y,pm,r.pay?Math.min(r.pay,last):last));
 }
 // 分割の2回目以降は、使った日をひと月ずつ後ろにずらして締め日ルールに当てはめる
 function addMonths(ds,k){const [y,m,d]=ds.split("-").map(Number);const last=new Date(y,m+k,0).getDate();return fmt(new Date(y,m-1+k,Math.min(d,last)))}
@@ -402,12 +430,27 @@ function compute(){
   const sum=k=>per.reduce((s,p)=>s+p[k],0);
   const byMonthMap=new Map();
   for(const p of per) for(const e of p.ev) if(e.amount<0){const mo=e.date.slice(0,7);byMonthMap.set(mo,(byMonthMap.get(mo)||0)-e.amount)}
+  // グラフ用：月ごとの請求額（済みも含む）と、今月以降の月末の資産（全口座の見込み残高）
+  const curMo=t.slice(0,7);
+  const moAdd=(mo,k)=>{const [y,m]=mo.split("-").map(Number);const d=new Date(y,m-1+k,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
+  const billMo=new Map(), addB=(date,amt)=>{const mo=date.slice(0,7);billMo.set(mo,(billMo.get(mo)||0)+amt)};
+  for(const g of groups.values()) addB(g.date,g.amount);
+  for(const fe of fixedEv) addB(fe.date,fe.amount);
+  let lastMo=horizon.slice(0,7); if(lastMo>moAdd(curMo,11)) lastMo=moAdd(curMo,11);
+  const chart=[];
+  for(let mo=moAdd(curMo,-2);mo<=lastMo;mo=moAdd(mo,1)){
+    let endBal=null;
+    if(mo>=curMo){const me=fmt(new Date(+mo.slice(0,4),+mo.slice(5,7),0));
+      endBal=per.reduce((s,p)=>s+p.bal+p.ev.reduce((a,e)=>a+(e.date<=me?e.amount:0),0),0)}
+    if(!chart.length&&!billMo.get(mo)&&endBal===null) continue;
+    chart.push({mo,bills:billMo.get(mo)||0,endBal});
+  }
   const all=[...groups.values()].sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0);
   return {today:t,per,bal:sum("bal"),unpaid:sum("unpaid"),incomeSum:sum("incomeSum"),final:sum("final"),room:sum("room"),mOut:sum("mOut"),
     settled:per.flatMap(p=>p.settled).sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0),
     upcoming:all.filter(g=>g.state==="upcoming"),
     cardBills:all.filter(g=>g.card!=="口座"&&(g.state==="upcoming"||(g.state==="settled"&&g.date.slice(0,7)===t.slice(0,7)))),
-    paid:S.entries.filter(e=>!pending.has(e.id)),
+    paid:S.entries.filter(e=>!pending.has(e.id)),chart,curMo,
     byMonth:[...byMonthMap.entries()].sort((x,y)=>x[0]<y[0]?-1:1).map(([mo,total])=>({mo,total}))};
 }
 
@@ -436,6 +479,50 @@ function updateHint(){
   if(n===1){$("hint").textContent=`${fut}${md(bd)}の${card}の引き落としに入ります${from}`;return}
   const p=splitParts(toNum($("amt").value),n), lastBd=billDate(addMonths(d,n-1),card);
   $("hint").textContent=`${fut}${md(bd)}から${n}回に分けて${card}で引き落とし（〜${md(lastBd)}）${from}`+(p[0]?`。1回目 ${yen(p[0])}、2回目から ${yen(p[1])}`:"");
+}
+
+// 目盛りを 1・2・5 × 10のべき乗 にそろえる
+function niceStep(x){if(x<=0)return 1;const p=10**Math.floor(Math.log10(x));for(const m of [1,2,5,10]) if(m*p>=x) return m*p;return 10*p}
+const manLabel=v=>v===0?"0":(Math.abs(v)>=10000?`${v/10000}万`:`${v.toLocaleString("ja-JP")}`);
+const moLabel=(mo,cur)=>{const [y,m]=mo.split("-");return (y!==cur.slice(0,4)&&m==="01")?`${y.slice(2)}年1月`:`${+m}月`};
+function barSVG(rows,key,sel,cur){
+  const W=340,H=140,L=40,R=6,T=8,B=20;
+  const vals=rows.map(r=>r[key]).filter(v=>v!==null);
+  if(!vals.length) return `<div class="empty">まだデータがありません。</div>`;
+  let max=Math.max(0,...vals),min=Math.min(0,...vals);
+  const step=niceStep((max-min)/3); max=Math.ceil(max/step)*step; min=Math.floor(min/step)*step; if(max===min) max=min+step;
+  const y=v=>T+(max-v)/(max-min)*(H-T-B), cw=(W-L-R)/rows.length, bw=Math.max(6,Math.min(26,cw*0.56));
+  let g="";
+  for(let v=min;v<=max+1e-9;v+=step) g+=`<line class="${v===0?"zero":"gl"}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${manLabel(v)}</text>`;
+  let bars="",hits="",labs="";
+  rows.forEach((r,i)=>{
+    const cx=L+cw*i+cw/2;
+    if(i===sel) bars+=`<rect class="sel" x="${L+cw*i+1}" y="${T}" width="${cw-2}" height="${H-T-B}" rx="4"/>`;
+    const v=r[key];
+    if(v!==null&&v!==0){
+      const x=cx-bw/2,y0=y(0),y1=y(v),h=Math.abs(y0-y1),rr=Math.min(4,h,bw/2);
+      const d=v>0?`M${x},${y0}V${y1+rr}Q${x},${y1} ${x+rr},${y1}H${x+bw-rr}Q${x+bw},${y1} ${x+bw},${y1+rr}V${y0}Z`
+                 :`M${x},${y0}V${y1-rr}Q${x},${y1} ${x+rr},${y1}H${x+bw-rr}Q${x+bw},${y1} ${x+bw},${y1-rr}V${y0}Z`;
+      bars+=`<path d="${d}" fill="${v<0?"var(--chart-neg)":"var(--chart)"}"/>`;
+    }
+    labs+=`<text x="${cx}" y="${H-5}" text-anchor="middle" class="${r.mo===cur?"cur":""}">${moLabel(r.mo,cur)}</text>`;
+    hits+=`<rect class="hit" data-i="${i}" x="${L+cw*i}" y="0" width="${cw}" height="${H}"><title>${moLabel(r.mo,cur)} ${v===null?"—":yen(v)}</title></rect>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${key==="bills"?"月ごとの請求額":"月末の資産"}のグラフ">${g}${bars}${labs}${hits}</svg>`;
+}
+let chartSel=null;
+function renderCharts(c){
+  const rows=c.chart;
+  if(chartSel===null||chartSel>=rows.length) chartSel=Math.max(0,rows.findIndex(r=>r.mo===c.curMo));
+  const r=rows[chartSel];
+  $("readout").innerHTML=r?`<b>${moLabel(r.mo,c.curMo)}${r.mo===c.curMo?"（今月）":""}</b><span>請求額 <span class="num">${yen(r.bills)}</span></span><span>月末の資産 <span class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</span></span>`:"まだデータがありません。";
+  $("chBills").innerHTML=barSVG(rows,"bills",chartSel,c.curMo);
+  $("chAssets").innerHTML=barSVG(rows,"endBal",chartSel,c.curMo);
+  $("byMonth").innerHTML=rows.length?`<thead><tr><th>月</th><th>請求額</th><th>月末の資産</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.mo===c.curMo?"cur":""}"><td>${moLabel(r.mo,c.curMo)}</td><td class="num">${yen(r.bills)}</td><td class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</td></tr>`).join("")}</tbody>`:"";
+}
+for(const id of ["chBills","chAssets"]){
+  const pick=e=>{const h=e.target.closest(".hit");if(!h)return;const i=Number(h.dataset.i);if(i===chartSel)return;chartSel=i;renderCharts(compute())};
+  $(id).addEventListener("click",pick); $(id).addEventListener("mouseover",pick);
 }
 
 function render(){
@@ -474,10 +561,7 @@ function render(){
         <div class="l">記録の合計 ${yen(g.recorded)}${g.fixed&&g.recorded!==g.amount?`（差 ${yen(g.amount-g.recorded)}）`:""}</div>
         ${g.state==="settled"?"":`<div class="act"><input class="t num" inputmode="numeric" placeholder="確定額" value="${g.fixed?comma(g.amount):""}" data-bfin="${esc(key)}" aria-label="${esc(g.card)}の確定額"><button class="mini" type="button" data-bf="${esc(key)}">${g.fixed?"直す":"確定"}</button></div>`}</div>`}).join("")}).join("")
     :`<div class="empty">まだカードの請求はありません。</div>`;
-  $("byMonth").innerHTML=c.byMonth.length?c.byMonth.map(x=>{
-    const [y,m]=x.mo.split("-"); const label=y===today().slice(0,4)?`${+m}月`:`${y}年${+m}月`;
-    return `<div class="item" style="cursor:default"><div class="what"><div>${label}</div></div><span class="num">${yen(x.total)}</span></div>`;
-  }).join(""):`<div class="empty">まだ予定がありません。</div>`;
+  renderCharts(c);
   $("book").innerHTML=c.per.map(p=>`${multi()?`<h3>${esc(p.a.name)}</h3>`:""}<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
     ${p.settledOut?`<tr><td>${md(p.base)}</td><td>入力した残高</td><td></td><td class="num">${yen(p.bal0)}</td></tr>`+(()=>{let r=p.bal0;return p.settled.map(s=>{r-=s.amount;return `<tr><td>${md(s.date)}</td><td>${esc(s.label)}<span class="tag">済</span></td><td class="num">${yen(-s.amount)}</td><td class="num ${r<0?"neg":""}">${yen(r)}</td></tr>`}).join("")})():""}
     <tr><td>${md(c.today)}</td><td>今の残高</td><td></td><td class="num ${p.bal<0?"neg":""}">${yen(p.bal)}</td></tr>
@@ -500,6 +584,14 @@ function render(){
     </div>`}).join("");
   // カードの引き落とし口座
   if(!$("cardMap").contains(document.activeElement)) $("cardMap").innerHTML=CREDIT.map(cd=>`<span>${esc(cd)}</span><select class="t" data-cardacct="${esc(cd)}" aria-label="${esc(cd)}の引き落とし口座">${accts().map(a=>`<option value="${esc(a.id)}"${cardAcct(cd,"9999")===a.id?" selected":""}>${esc(a.name)}</option>`).join("")}</select>`).join("");
+  if(!$("ruleMap").contains(document.activeElement)){
+    const opt=(vals,cur,lab)=>vals.map(v=>`<option value="${v}"${v===cur?" selected":""}>${lab(v)}</option>`).join("");
+    const days=[0,...Array.from({length:31},(_,i)=>i+1)];
+    $("ruleMap").innerHTML=`<span class="h"></span><span class="h">締め日</span><span class="h">払う月</span><span class="h">引き落とし日</span>`+CREDIT.map(cd=>{const r=rule(cd);return `<span>${esc(cd)}</span>
+      <select class="t" data-rule="${esc(cd)}" data-k="close" aria-label="${esc(cd)}の締め日">${opt(days.filter(v=>v<=28),r.close,dayLabel)}</select>
+      <select class="t" data-rule="${esc(cd)}" data-k="months" aria-label="${esc(cd)}の払う月">${opt([1,2],Number(r.months)||1,v=>v===1?"翌月":"翌々月")}</select>
+      <select class="t" data-rule="${esc(cd)}" data-k="pay" aria-label="${esc(cd)}の引き落とし日">${opt(days,r.pay,dayLabel)}</select>`}).join("");
+  }
   // 新しく引き落とされた分のお知らせ
   const seen=S.settings.seenSettle||"";
   const fresh=c.settled.filter(s=>s.date>seen);
@@ -610,6 +702,10 @@ $("cardMap").addEventListener("change",async e=>{const s=e.target.closest("[data
     if(!Array.isArray(H[cd])||!H[cd].length) H[cd]=[{from:"0000-00-00",acct:cardAcct(cd,"9999")}];
     H[cd]=H[cd].filter(x=>x.from<t); H[cd].push({from:t,acct:s.value}); S.settings.cardAccount[cd]=s.value},
     `${cd}は今月（${+t.slice(5,7)}月）の請求分から${acctName(s.value)}で引き落とします`)});
+$("ruleMap").addEventListener("change",async e=>{const s=e.target.closest("[data-rule]");if(!s)return;
+  const cd=s.dataset.rule, k=s.dataset.k, v=Number(s.value); s.blur();
+  await write(()=>{const R=S.settings.cardRules=S.settings.cardRules||{};R[cd]={...(R[cd]||{}),[k]:v}},
+    `${cd}の締め日・引き落とし日を変えました`)});
 $("fInc").addEventListener("submit",async e=>{e.preventDefault();
   const act=toNum($("incAct").value), amount=toNum($("incAmt").value)||act; if(!amount){$("incAmt").focus();return}
   // 実際の額も入れたら、その場で口座残高に足す（一覧の「保存」と同じ扱い）
