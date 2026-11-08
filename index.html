@@ -150,6 +150,12 @@ h3:first-child{margin-top:0}
 .mtable th:first-child,.mtable td:first-child{text-align:left}
 .mtable td{padding:6px;border-bottom:1px dashed var(--line);text-align:right}
 .mtable tr.cur td{font-weight:700}
+.meter{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0 4px}
+.meter span{display:block;height:100%;background:var(--chart);border-radius:5px}
+.planrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding:4px 0}
+.planrow.total{border-top:1px solid var(--line);font-weight:700;margin-top:2px;padding-top:6px}
+.budget{display:flex;justify-content:space-between;align-items:baseline;gap:10px;background:var(--accent-soft);border-radius:12px;padding:10px 14px;font-size:13px}
+.budget b{font-size:18px}
 .tag.warn{background:var(--warn-soft);color:var(--ink)}
 </style>
 </head>
@@ -162,6 +168,7 @@ h3:first-child{margin-top:0}
   <section id="tab-rec" class="stack">
     <div id="nag" class="notice" hidden style="display:flex;align-items:center;gap:10px"><span id="nagText" style="flex:1;min-width:0"></span><button class="mini" id="nagBtn" type="button">今すぐ保存</button></div>
     <div id="settleNote" class="notice" hidden style="display:flex;align-items:flex-start;gap:10px"><div id="settleText" style="flex:1;min-width:0"></div><button class="mini" id="settleOk" type="button">OK</button></div>
+    <div class="budget" id="recBudget"></div>
     <form id="f" class="card stack" autocomplete="off">
       <div>
         <label class="f" for="amt">金額</label>
@@ -194,6 +201,11 @@ h3:first-child{margin-top:0}
     <div class="card"><h2>カードの請求額</h2>
       <p class="muted" style="font-size:12px;margin:0 0 6px">カード会社の明細で請求額が決まったら「確定額」に入れてください。計算はその額を使います。</p>
       <div id="bills"></div></div>
+    <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
+  </section>
+
+  <!-- グラフ -->
+  <section id="tab-graph" class="stack" hidden>
     <div class="card"><h2>月ごとの請求額と資産</h2>
       <div class="readout" id="readout"></div>
       <div class="chart-title"><span>請求額</span><span class="muted" style="font-weight:400">その月に引き落とされる合計</span></div>
@@ -202,7 +214,25 @@ h3:first-child{margin-top:0}
       <div class="chart" id="chAssets"></div>
       <div style="overflow-x:auto"><table class="mtable" id="byMonth"></table></div>
     </div>
-    <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
+  </section>
+
+  <!-- 計画 -->
+  <section id="tab-plan" class="stack" hidden>
+    <div class="kpis"><div class="kpi main" id="planMain"></div></div>
+    <form id="fGoal" class="card stack" autocomplete="off">
+      <h2 style="margin:0">貯金の目標</h2>
+      <div class="row2">
+        <div><label class="f" for="goalAmt">目標金額（円）</label><input class="t num" id="goalAmt" inputmode="numeric" placeholder="例：500,000"></div>
+        <div><label class="f" for="goalDl">いつまでに</label><input class="t" id="goalDl" type="month"></div>
+      </div>
+      <div><label class="f" for="goalInc">毎月の手取り（見込み）</label><input class="t num" id="goalInc" inputmode="numeric" placeholder="給与欄にない月に使います"></div>
+      <button class="btn sub" type="submit">目標を保存</button>
+      <div id="planGoal"></div>
+    </form>
+    <div class="card"><h2>カードごとに今月使える額</h2>
+      <div id="planCards"></div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">今日そのカードで使った場合の、1枚あたりの上限です。合計ではありません。給与は見込みの額も含み、固定費は設定に入れた分だけ数えています。</p>
+    </div>
   </section>
 
   <!-- 設定 -->
@@ -281,7 +311,7 @@ h3:first-child{margin-top:0}
       <div class="rulemap" id="ruleMap"></div>
       <p class="muted" style="font-size:13px;margin:8px 0 0">口座：その日に口座から出る</p>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 締め日設定・月ごとのグラフ</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 グラフのタブ・貯金計画</p>
     </div>
   </section>
 </div>
@@ -289,6 +319,8 @@ h3:first-child{margin-top:0}
 <nav class="tabs" role="tablist"><div>
   <button role="tab" data-t="rec" aria-selected="true">記録</button>
   <button role="tab" data-t="asset" aria-selected="false">資産</button>
+  <button role="tab" data-t="graph" aria-selected="false">グラフ</button>
+  <button role="tab" data-t="plan" aria-selected="false">計画</button>
   <button role="tab" data-t="set" aria-selected="false">設定</button>
 </div></nav>
 <div class="toast" id="toast" hidden></div>
@@ -354,6 +386,7 @@ const multi=()=>accts().length>1;
 const hasBal=a=>(a.balance??"")!=="";
 function adjBal(id,delta){const a=acctById(id);a.balance=(Number(a.balance)||0)+delta}
 
+const moAdd=(mo,k)=>{const [y,m]=mo.split("-").map(Number);const d=new Date(y,m-1+k,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
 function compute(){
   migrate();
   const t=today(), t0=new Date(t+"T00:00");
@@ -432,7 +465,6 @@ function compute(){
   for(const p of per) for(const e of p.ev) if(e.amount<0){const mo=e.date.slice(0,7);byMonthMap.set(mo,(byMonthMap.get(mo)||0)-e.amount)}
   // グラフ用：月ごとの請求額（済みも含む）と、今月以降の月末の資産（全口座の見込み残高）
   const curMo=t.slice(0,7);
-  const moAdd=(mo,k)=>{const [y,m]=mo.split("-").map(Number);const d=new Date(y,m-1+k,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
   const billMo=new Map(), addB=(date,amt)=>{const mo=date.slice(0,7);billMo.set(mo,(billMo.get(mo)||0)+amt)};
   for(const g of groups.values()) addB(g.date,g.amount);
   for(const fe of fixedEv) addB(fe.date,fe.amount);
@@ -452,6 +484,129 @@ function compute(){
     cardBills:all.filter(g=>g.card!=="口座"&&(g.state==="upcoming"||(g.state==="settled"&&g.date.slice(0,7)===t.slice(0,7)))),
     paid:S.entries.filter(e=>!pending.has(e.id)),chart,curMo,
     byMonth:[...byMonthMap.entries()].sort((x,y)=>x[0]<y[0]?-1:1).map(([mo,total])=>({mo,total}))};
+}
+
+// 今月カードで使える額は、次の2つの少ない方
+//  (1) 口座：今日カードで使うと引き落とされる日以降、口座がマイナスにならない上限
+//  (2) 貯金：期限までに目標へ届くよう、使えるお金を残りの月で均等に割った今月の枠
+function plan(c){
+  const t=c.today, curMo=c.curMo, g=S.settings.goal||{};
+  const amount=Number(g.amount)||0, deadline=g.deadline||"", income=Number(g.income)||0;
+  // 給与欄にない来月以降の月は「毎月の手取り」が入るものとして見る（入る日と口座は最新の給与と同じ）
+  const incMonths=new Set(S.incomes.map(i=>i.date.slice(0,7)));
+  const latestInc=S.incomes.slice().sort((a,b)=>a.date<b.date?-1:1).pop();
+  const payDay=latestInc?Number(latestInc.date.slice(8)):31, incAccount=validAcct(latestInc&&latestInc.account);
+  // (1) カードごと：引き落とし日より後で一番少なくなる残高が余裕の額
+  // 手取りが空欄なら先の給与が分からないので、引き落としの月の末までで見る
+  const cards=CREDIT.map(cd=>{
+    const date=billDate(t,cd), ac=cardAcct(cd,date), p=c.per.find(x=>x.a.id===ac);
+    const evs=p.ev.map(e=>({date:e.date,amount:e.amount}));
+    if(income&&ac===incAccount&&evs.length){
+      const lastMo=evs.reduce((m,e)=>e.date>m?e.date:m,"").slice(0,7);
+      for(let mo=moAdd(curMo,1);mo<=lastMo;mo=moAdd(mo,1)) if(!incMonths.has(mo)){
+        const [y,m]=mo.split("-").map(Number);
+        evs.push({date:fmt(new Date(y,m-1,Math.min(payDay,new Date(y,m,0).getDate()))),amount:income});
+      }
+      evs.sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:(x.amount-y.amount));
+    }
+    const stop=income?"9999":fmt(new Date(+date.slice(0,4),+date.slice(5,7),0));
+    let run=p.bal, low=null, lowDate=date;
+    for(const e of evs){
+      if(e.date>stop) break;
+      if(e.date>=date&&low===null) low=run;
+      run+=e.amount;
+      if(e.date>=date&&run<low){low=run;lowDate=e.date}
+    }
+    if(low===null) low=run;
+    const billed=c.upcoming.filter(x=>x.card===cd&&x.date===date).reduce((s,x)=>s+x.amount,0);
+    return {card:cd,date,acct:ac,billed,cap:Math.max(0,low),low,lowDate,noBal:!hasBal(p.a)};
+  });
+  // 同じ口座のカードは余裕を分け合うので、口座ごとに一番低い額をとって足す
+  const byAcct=new Map();
+  for(const x of cards) byAcct.set(x.acct,Math.min(byAcct.get(x.acct)??Infinity,x.cap));
+  const cash=[...byAcct.values()].reduce((s,v)=>s+v,0);
+  const lastBill=cards.reduce((m,x)=>x.date>m?x.date:m,t);
+  const incomeAhead=c.per.some(p=>p.ev.some(e=>e.inc&&e.date<=lastBill));
+  const out={cards,cash,amount,deadline,income,lastBill,incomeAhead,limit:cash,goal:false,asset:c.bal-c.unpaid};
+  const [ty,tm]=curMo.split("-").map(Number);
+  out.daysLeft=new Date(ty,tm,0).getDate()-Number(t.slice(8))+1;
+  if(!amount||!deadline||deadline<curMo) return out;
+  // (2) 貯金：今の残高 − 未払い + 期限までの入金 − 期限までの固定費 − 目標
+  const dlEnd=fmt(new Date(+deadline.slice(0,4),+deadline.slice(5,7),0));
+  let months=0; for(let mo=curMo;mo<=deadline;mo=moAdd(mo,1)) months++;
+  let committed=0;
+  for(const x of c.upcoming) committed+=x.amount-x.items.reduce((s,it)=>s+(it.f?it.amount:0),0);
+  let fixedFuture=0;
+  for(const f of S.fixed){const fc=f.card||"口座", amt=Number(f.amount)||0;
+    for(let mo=moAdd(curMo,-3);mo<=deadline;mo=moAdd(mo,1)){
+      if(f.start&&mo<f.start) continue;
+      const [y,m]=mo.split("-").map(Number), last=new Date(y,m,0).getDate();
+      if(billDate(fmt(new Date(y,m-1,Math.min(Number(f.day)||1,last))),fc)>t) fixedFuture+=amt;
+    }}
+  let listed=0; for(const p of c.per) for(const e of p.ev) if(e.inc&&e.date<=dlEnd) listed+=e.amount;
+  // 給与欄に入金がない来月以降の月だけ「毎月の手取り」を足す。今月分は給与欄にある分だけ数える
+  let extraMonths=0; for(let mo=moAdd(curMo,1);mo<=deadline;mo=moAdd(mo,1)) if(!incMonths.has(mo)) extraMonths++;
+  const extra=extraMonths*income;
+  // 今月使った額（使った日が今月）。分割は1回目だけ数え、残りは未払いとして毎月の枠から均等に引く
+  let spent=0;
+  for(const e of S.entries) if(e.date.slice(0,7)===curMo){
+    const n=e.card==="口座"?1:Math.max(1,Number(e.split)||1);
+    spent+=splitParts(Number(e.amount)||0,n)[0];
+  }
+  const avail=c.bal-committed+listed+extra-fixedFuture-amount;   // これから使えるお金の合計
+  const monthly=Math.floor((avail+spent)/months);                 // 今月はじめから見た1か月の枠
+  const remain=monthly-spent;
+  return {...out,goal:true,months,committed,fixedFuture,listed,extra,extraMonths,spent,avail,monthly,remain,
+    limit:Math.min(Math.max(0,remain),cash)};
+}
+const cardLimit=(pl,x)=>pl.goal?Math.min(Math.max(0,pl.remain),x.cap):x.cap;
+function renderPlan(c){
+  const pl=plan(c), daily=Math.floor(pl.limit/pl.daysLeft);
+  const pace=pl.limit>0?`1日あたり <span class="num">${yen(daily)}</span>`:"今月はこれ以上使わない計算です";
+  $("recBudget").innerHTML=`<span>今月カードで使える額<br><span class="muted" style="font-size:12px">${pace}</span></span><b class="num ${pl.limit<=0?"neg":""}">あと ${yen(pl.limit)}</b>`;
+  const noBal=pl.cards.some(x=>x.noBal);
+  $("planMain").innerHTML=`<div class="l">今月カードで使える額（どのカードでも）</div><div class="v num ${pl.limit<=0?"neg":""}">${yen(pl.limit)}</div>
+    <div class="d">${pl.goal
+      ?`貯金の目標から見た今月の残り ${yen(Math.max(0,pl.remain))} と、引き落とし日の口座の余裕 ${yen(pl.cash)} の少ない方。`
+      :`引き落とし日に口座がマイナスにならない上限です。目標を入れると、貯金する分を除いた額になります。`}
+    月末まであと${pl.daysLeft}日${pl.limit>0?`、1日あたり${yen(daily)}`:""}。${!pl.incomeAhead?`<br>${md(pl.lastBill)}までの入金が給与欄にないので、入金なしで計算しています。`:""}${noBal?"<br>残高が未入力の口座があります。":""}</div>`;
+  $("planCards").innerHTML=pl.cards.map(x=>`<div class="bill"><div class="top2"><span>${esc(x.card)}${multi()?`<span class="tag">${esc(acctName(x.acct))}</span>`:""}</span><b class="num ${cardLimit(pl,x)<=0?"neg":""}">${yen(cardLimit(pl,x))}</b></div>
+    <div class="l">今日使うと${md(x.date)}に引き落とし（その請求は今 ${yen(x.billed)}）</div>
+    <div class="l">口座の余裕 <span class="num ${x.low<0?"neg":""}">${yen(x.low)}</span>（${md(x.lowDate)}の時点）</div></div>`).join("");
+  // 目標フォーム（入力中は書き換えない）
+  if(!$("fGoal").contains(document.activeElement)){
+    $("goalAmt").value=comma(pl.amount); $("goalDl").value=pl.deadline; $("goalInc").value=comma(pl.income);
+  }
+  let h="";
+  if(pl.amount){
+    const ratio=Math.max(0,Math.min(1,pl.asset/pl.amount)), rest=pl.amount-pl.asset;
+    h+=`<div class="planrow"><span>今の実際の資産</span><b class="num ${pl.asset<0?"neg":""}">${yen(pl.asset)}</b></div>
+      <div class="meter" role="img" aria-label="目標の${Math.round(ratio*100)}%"><span style="width:${ratio*100}%"></span></div>
+      <div class="planrow"><span class="muted">目標 ${yen(pl.amount)} の${Math.round(ratio*100)}%</span><span class="num">${rest>0?`あと ${yen(rest)}`:"達成"}</span></div>`;
+  }
+  if(pl.goal){
+    h+=`<div class="planrow"><span>毎月ふやす額（あと${pl.months}か月）</span><span class="num">${yen(Math.max(0,Math.ceil((pl.amount-pl.asset)/pl.months)))}</span></div>
+      <div class="planrow"><span>1か月に使える額</span><span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span></div>
+      <div class="planrow"><span>今月使った額</span><span class="num">${yen(pl.spent)}</span></div>
+      <div class="planrow total"><span>今月の残り</span><span class="num ${pl.remain<0?"neg":""}">${yen(pl.remain)}</span></div>`;
+    if(pl.avail<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">これ以上まったく使わなくても、期限までに${yen(-pl.avail)}足りません。${pl.income?"期限か目標金額を見直してください。":"毎月の手取りを入れると計算が変わります。"}</p>`;
+    else if(pl.remain<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">今月は枠を${yen(-pl.remain)}超えています。超えた分は来月以降の枠から減ります。</p>`;
+    if(!pl.income&&pl.extraMonths) h+=`<p class="muted" style="font-size:12px;margin:8px 0 0">毎月の手取りが空欄なので、給与欄にある入金だけで計算しています。</p>`;
+    h+=`<details><summary>計算の内訳</summary>
+      <div class="planrow"><span>口座残高の合計</span><span class="num">${yen(c.bal)}</span></div>
+      <div class="planrow"><span>− 未払いの請求（固定費以外）</span><span class="num">${yen(pl.committed)}</span></div>
+      <div class="planrow"><span>＋ 給与欄の入金（期限まで）</span><span class="num">${yen(pl.listed)}</span></div>
+      <div class="planrow"><span>＋ 毎月の手取り × ${pl.extraMonths}か月</span><span class="num">${yen(pl.extra)}</span></div>
+      <div class="planrow"><span>− 固定費（期限まで）</span><span class="num">${yen(pl.fixedFuture)}</span></div>
+      <div class="planrow"><span>− 目標金額</span><span class="num">${yen(pl.amount)}</span></div>
+      <div class="planrow total"><span>これから使えるお金</span><span class="num ${pl.avail<0?"neg":""}">${yen(pl.avail)}</span></div>
+      <div class="planrow"><span>＋ 今月すでに使った額</span><span class="num">${yen(pl.spent)}</span></div>
+      <div class="planrow"><span>÷ ${pl.months}か月 ＝ 1か月に使える額</span><span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span></div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">今月の入金は給与欄にある分だけ数えます。分割払いは1回目を今月の分に数え、残りは未払いとして毎月の枠から均等に引きます。</p>
+    </details>`;
+  } else if(pl.amount&&!pl.deadline) h+=`<p class="muted" style="font-size:13px;margin:8px 0 0">「いつまでに」を入れると、1か月に使える額を計算します。</p>`;
+  else if(pl.amount&&pl.deadline<c.curMo) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">期限が過ぎています。「いつまでに」を入れ直してください。</p>`;
+  $("planGoal").innerHTML=h; $("planGoal").hidden=!h;
 }
 
 function chips(el,list,get,set,label=v=>v){
@@ -474,9 +629,14 @@ function updateHint(){
   const d=$("dt").value||today(); const bd=billDate(d,card);
   const fut=d>today()?"予定として記録。":"";
   const from=multi()?`（${acctName(card==="口座"?payAcct:cardAcct(card,bd))}から）`:"";
-  if(card==="口座"){$("hint").textContent=`${fut}${md(bd)}に口座から出るお金として計算します${from}`;return}
+  const amtNow=toNum($("amt").value), thisMo=d.slice(0,7)===today().slice(0,7)&&!editingId;
+  if(card==="口座"){let tail="";
+    if(amtNow&&thisMo){const pl=plan(compute()); if(pl.goal) tail=`。使うと今月の残りは${yen(pl.remain-amtNow)}`}
+    $("hint").textContent=`${fut}${md(bd)}に口座から出るお金として計算します${from}${tail}`;return}
   const n=Number($("split").value)||1;
-  if(n===1){$("hint").textContent=`${fut}${md(bd)}の${card}の引き落としに入ります${from}`;return}
+  if(n===1){let tail="";
+    if(amtNow&&thisMo){const pl=plan(compute()),x=pl.cards.find(y=>y.card===card); if(x) tail=`。使うと今月このカードで使える額は${yen(cardLimit(pl,x)-amtNow)}`}
+    $("hint").textContent=`${fut}${md(bd)}の${card}の引き落としに入ります${from}${tail}`;return}
   const p=splitParts(toNum($("amt").value),n), lastBd=billDate(addMonths(d,n-1),card);
   $("hint").textContent=`${fut}${md(bd)}から${n}回に分けて${card}で引き落とし（〜${md(lastBd)}）${from}`+(p[0]?`。1回目 ${yen(p[0])}、2回目から ${yen(p[1])}`:"");
 }
@@ -562,6 +722,7 @@ function render(){
         ${g.state==="settled"?"":`<div class="act"><input class="t num" inputmode="numeric" placeholder="確定額" value="${g.fixed?comma(g.amount):""}" data-bfin="${esc(key)}" aria-label="${esc(g.card)}の確定額"><button class="mini" type="button" data-bf="${esc(key)}">${g.fixed?"直す":"確定"}</button></div>`}</div>`}).join("")}).join("")
     :`<div class="empty">まだカードの請求はありません。</div>`;
   renderCharts(c);
+  renderPlan(c);
   $("book").innerHTML=c.per.map(p=>`${multi()?`<h3>${esc(p.a.name)}</h3>`:""}<table><thead><tr><th>日付</th><th>摘要</th><th>出入り</th><th>残高</th></tr></thead><tbody>
     ${p.settledOut?`<tr><td>${md(p.base)}</td><td>入力した残高</td><td></td><td class="num">${yen(p.bal0)}</td></tr>`+(()=>{let r=p.bal0;return p.settled.map(s=>{r-=s.amount;return `<tr><td>${md(s.date)}</td><td>${esc(s.label)}<span class="tag">済</span></td><td class="num">${yen(-s.amount)}</td><td class="num ${r<0?"neg":""}">${yen(r)}</td></tr>`}).join("")})():""}
     <tr><td>${md(c.today)}</td><td>今の残高</td><td></td><td class="num ${p.bal<0?"neg":""}">${yen(p.bal)}</td></tr>
@@ -689,8 +850,14 @@ $("bills").addEventListener("click",async e=>{const b=e.target.closest("[data-bf
   b.blur(); if(inp) inp.blur();
   await write(()=>{if(v==="") delete S.settings.billFix[key]; else S.settings.billFix[key]=toNum(v)}, v===""?"確定額を消して、記録の合計に戻しました":`確定額 ${yen(toNum(v))} を保存しました`)});
 
+// 計画：貯金の目標
+$("fGoal").addEventListener("submit",async e=>{e.preventDefault();
+  const amount=toNum($("goalAmt").value), deadline=$("goalDl").value, income=toNum($("goalInc").value);
+  if(document.activeElement) document.activeElement.blur();
+  await write(()=>{S.settings.goal={amount,deadline,income}},amount?"目標を保存しました":"目標を消しました")});
+
 // 設定：口座
-for(const id of ["newAcctBal","incAmt","incAct","fixAmt"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+for(const id of ["newAcctBal","incAmt","incAct","fixAmt","goalAmt","goalInc"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
 $("fAcct").addEventListener("submit",async e=>{e.preventDefault();
   const name=$("newAcctName").value.trim(); if(!name) return; const v=$("newAcctBal").value.trim();
   if(await write(()=>accts().push({id:"a"+newId().slice(0,8),name,balance:v===""?"":toNum(v),baseDate:today()}),`${name}を追加しました`)){$("newAcctName").value="";$("newAcctBal").value=""}});
@@ -764,7 +931,7 @@ $("tab-set").addEventListener("click",async e=>{
 // タブ
 document.querySelector("nav.tabs").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   document.querySelectorAll("nav.tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
-  for(const t of ["rec","asset","set"]) $("tab-"+t).hidden=t!==b.dataset.t;
+  for(const t of ["rec","asset","graph","plan","set"]) $("tab-"+t).hidden=t!==b.dataset.t;
   try{localStorage.setItem("tab",b.dataset.t)}catch{}
   window.scrollTo(0,0)});
 try{const t=localStorage.getItem("tab");if(t)document.querySelector(`nav.tabs button[data-t="${t}"]`)?.click()}catch{}
