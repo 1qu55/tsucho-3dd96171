@@ -219,15 +219,40 @@ h3:first-child{margin-top:0}
   <!-- 計画 -->
   <section id="tab-plan" class="stack" hidden>
     <div class="kpis"><div class="kpi main" id="planMain"></div></div>
+    <form id="fBudget" class="card stack" autocomplete="off">
+      <h2 style="margin:0">今月使う額</h2>
+      <div id="budgetInfo"></div>
+      <div><label class="f" for="bLimit">1か月に使う額を自分で決める（空欄ならおすすめの額）</label><input class="t num" id="bLimit" inputmode="numeric" placeholder="おすすめの額を使う"></div>
+      <button class="btn sub" type="submit">保存</button>
+    </form>
+    <div class="card"><h2>貯金の目標</h2>
+      <div id="goalList"></div>
+      <div id="planSummary"></div>
+    </div>
     <form id="fGoal" class="card stack" autocomplete="off">
-      <h2 style="margin:0">貯金の目標</h2>
+      <h2 style="margin:0" id="goalFormTitle">目標を追加</h2>
       <div class="row2">
-        <div><label class="f" for="goalAmt">目標金額（円）</label><input class="t num" id="goalAmt" inputmode="numeric" placeholder="例：500,000"></div>
-        <div><label class="f" for="goalDl">いつまでに</label><input class="t" id="goalDl" type="month"></div>
+        <div><label class="f" for="gName">名前</label><input class="t" id="gName" placeholder="例：旅行" required></div>
+        <div><label class="f" for="gAmt">目標金額（円）</label><input class="t num" id="gAmt" inputmode="numeric" required></div>
       </div>
-      <div><label class="f" for="goalInc">毎月の手取り（見込み）</label><input class="t num" id="goalInc" inputmode="numeric" placeholder="給与欄にない月に使います"></div>
-      <button class="btn sub" type="submit">目標を保存</button>
-      <div id="planGoal"></div>
+      <div class="row2">
+        <div><label class="f" for="gDate">この日までに達成したい</label><input class="t" id="gDate" type="date"></div>
+        <div><label class="f" for="gExpect">自分の想定達成日（任意）</label><input class="t" id="gExpect" type="date"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">「この日までに達成したい」を入れた目標が、今月使える額の計算に入ります。「この調子だといつ達成できるか」は自動で出ます。</p>
+      <div class="btns"><button class="btn sub" id="gSubmit" type="submit">目標を追加</button><button class="btn sub" id="gCancel" type="button" hidden style="width:auto;padding-inline:18px">やめる</button></div>
+    </form>
+    <form id="fSalary" class="card stack" autocomplete="off">
+      <h2 style="margin:0">給与の目標と年の上限</h2>
+      <div class="row2">
+        <div><label class="f" for="sExpect">月々の給与見込み（円）</label><input class="t num" id="sExpect" inputmode="numeric" placeholder="空欄なら給与欄の最新額"></div>
+        <div><label class="f" for="sTarget">月々の給与目標（円）</label><input class="t num" id="sTarget" inputmode="numeric" placeholder="未設定"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">使える額の計算には「見込み」だけを使います。「目標」は達成できたかを見るためのもので、計算には入れません。</p>
+      <div><label class="f" for="sCap">年の上限（円）</label><input class="t num" id="sCap" inputmode="numeric"></div>
+      <div><label class="f" for="sOther">今年の給与のうち、給与欄に入れていない分（円）</label><input class="t num" id="sOther" inputmode="numeric" placeholder="例：1〜9月の合計"></div>
+      <button class="btn sub" type="submit">保存</button>
+      <div id="salaryInfo"></div>
     </form>
     <div class="card"><h2>カードごとに今月使える額</h2>
       <div id="planCards"></div>
@@ -311,7 +336,7 @@ h3:first-child{margin-top:0}
       <div class="rulemap" id="ruleMap"></div>
       <p class="muted" style="font-size:13px;margin:8px 0 0">口座：その日に口座から出る</p>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 グラフのタブ・貯金計画</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数の目標・給与の上限・今月使う額</p>
     </div>
   </section>
 </div>
@@ -370,6 +395,13 @@ function migrate(){
   delete st.balance; delete st.baseDate;
   if(!st.cardAccount||typeof st.cardAccount!=="object") st.cardAccount={};
   if(!st.billFix||typeof st.billFix!=="object") st.billFix={};
+  if(!Array.isArray(st.goals)) st.goals=[];
+  if(st.goal){const g=st.goal;
+    if(Number(g.amount)>0){const [y,m]=(g.deadline||"").split("-").map(Number);
+      st.goals.push({id:"g"+Date.now().toString(36),name:"貯金",amount:Number(g.amount),date:y?fmt(new Date(y,m,0)):"",expect:""})}
+    if(Number(g.income)>0&&!st.monthlyExpect) st.monthlyExpect=Number(g.income);
+    delete st.goal}
+  if(st.incomeCap===undefined) st.incomeCap=1500000;
 }
 const accts=()=>S.settings.accounts;
 const validAcct=id=>accts().some(a=>a.id===id)?id:accts()[0].id;
@@ -441,7 +473,7 @@ function compute(){
       if(date<=base){if(g)g.state="paid";return}
       if(date<=t){if(g)g.state="settled";settledOut+=amt;settled.push({date,label,amount:amt,acct:a.id});return}
       if(g){g.state="upcoming";unpaid+=amt}
-      ev.push({date,label,amount:-amt});
+      ev.push({date,label,amount:-amt,fixed:!g});
     };
     for(const g of groups.values()) if(g.acct===a.id) take(g.date,g.label,g.amount,g);
     for(const fe of fixedEv) if(fe.acct===a.id) take(fe.date,fe.label,fe.amount,null);
@@ -486,30 +518,65 @@ function compute(){
     byMonth:[...byMonthMap.entries()].sort((x,y)=>x[0]<y[0]?-1:1).map(([mo,total])=>({mo,total}))};
 }
 
+// 給与の見通し：給与欄にない来月以降の月は「月々の給与見込み」が入るものとする（目標は当てにしない）。
+// ただし暦年の合計が上限を超える分は入らないものとして数える
+function incomeFlow(c){
+  const st=S.settings, cap=Number(st.incomeCap)||0, curMo=c.curMo;
+  const newest=S.incomes.slice().sort((a,b)=>a.date<b.date?-1:1).pop();
+  const target=Number(st.monthlyExpect)||(newest?incVal(newest):0), goalSalary=Number(st.monthlyIncome)||0;
+  const curY=curMo.slice(0,4), other=st.incomeOther&&st.incomeOther.year===curY?Number(st.incomeOther.amount)||0:0;
+  const incMonths=new Set(S.incomes.map(i=>i.date.slice(0,7)));
+  const used=new Map([[curY,other]]);
+  for(const i of S.incomes){const y=i.date.slice(0,4);used.set(y,(used.get(y)||0)+incVal(i))}
+  const listed=new Map();
+  for(const p of c.per) for(const e of p.ev) if(e.inc){const mo=e.date.slice(0,7);listed.set(mo,(listed.get(mo)||0)+e.amount)}
+  const flow=[]; let mo=curMo, clipped=false;
+  for(let i=0;i<120;i++,mo=moAdd(mo,1)){
+    let syn=0;
+    if(i>0&&target&&!incMonths.has(mo)){
+      const y=mo.slice(0,4), u=used.get(y)||0;
+      syn=cap?Math.min(target,Math.max(0,cap-u)):target;
+      if(syn<target&&y===curY) clipped=true;
+      used.set(y,u+syn);
+    }
+    flow.push({mo,listed:listed.get(mo)||0,syn,inc:(listed.get(mo)||0)+syn});
+  }
+  return {flow,target,goalSalary,cap,other,clipped,used,curY,incMonths};
+}
+// 最近の使い方：直近の終わった月（記録のある月、最大3か月）の平均。分割も使った月に全額で数える
+function spendPace(c){
+  const by=new Map();
+  for(const e of S.entries){const mo=e.date.slice(0,7);if(mo<c.curMo) by.set(mo,(by.get(mo)||0)+(Number(e.amount)||0))}
+  const months=[...by.keys()].sort().slice(-3);
+  if(!months.length) return {pace:null,months};
+  return {pace:Math.round(months.reduce((s,m)=>s+by.get(m),0)/months.length),months};
+}
+const goalKey=g=>g.date||g.expect||"9999";
+const ymLabel=mo=>`${mo.slice(0,4)}年${+mo.slice(5,7)}月`;
+const ymdLabel=d=>`${d.slice(0,4)}年${+d.slice(5,7)}月${+d.slice(8)}日`;
 // 今月カードで使える額は、次の2つの少ない方
 //  (1) 口座：今日カードで使うと引き落とされる日以降、口座がマイナスにならない上限
-//  (2) 貯金：期限までに目標へ届くよう、使えるお金を残りの月で均等に割った今月の枠
+//  (2) 貯金：期限のある目標すべてに間に合う、1か月の枠のうち今月の残り
+//      期限ごとに「その日までの目標の合計」を残せる枠を出し、一番きつい期限に合わせる
 function plan(c){
-  const t=c.today, curMo=c.curMo, g=S.settings.goal||{};
-  const amount=Number(g.amount)||0, deadline=g.deadline||"", income=Number(g.income)||0;
-  // 給与欄にない来月以降の月は「毎月の手取り」が入るものとして見る（入る日と口座は最新の給与と同じ）
-  const incMonths=new Set(S.incomes.map(i=>i.date.slice(0,7)));
+  const t=c.today, curMo=c.curMo, F=incomeFlow(c);
   const latestInc=S.incomes.slice().sort((a,b)=>a.date<b.date?-1:1).pop();
   const payDay=latestInc?Number(latestInc.date.slice(8)):31, incAccount=validAcct(latestInc&&latestInc.account);
+  const synMap=new Map(F.flow.map(x=>[x.mo,x.syn]));
   // (1) カードごと：引き落とし日より後で一番少なくなる残高が余裕の額
-  // 手取りが空欄なら先の給与が分からないので、引き落としの月の末までで見る
+  // 給与目標が空欄なら先の給与が分からないので、引き落としの月の末までで見る
   const cards=CREDIT.map(cd=>{
     const date=billDate(t,cd), ac=cardAcct(cd,date), p=c.per.find(x=>x.a.id===ac);
     const evs=p.ev.map(e=>({date:e.date,amount:e.amount}));
-    if(income&&ac===incAccount&&evs.length){
+    if(F.target&&ac===incAccount&&evs.length){
       const lastMo=evs.reduce((m,e)=>e.date>m?e.date:m,"").slice(0,7);
-      for(let mo=moAdd(curMo,1);mo<=lastMo;mo=moAdd(mo,1)) if(!incMonths.has(mo)){
+      for(let mo=moAdd(curMo,1);mo<=lastMo;mo=moAdd(mo,1)){const syn=synMap.get(mo)||0; if(syn){
         const [y,m]=mo.split("-").map(Number);
-        evs.push({date:fmt(new Date(y,m-1,Math.min(payDay,new Date(y,m,0).getDate()))),amount:income});
-      }
+        evs.push({date:fmt(new Date(y,m-1,Math.min(payDay,new Date(y,m,0).getDate()))),amount:syn});
+      }}
       evs.sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:(x.amount-y.amount));
     }
-    const stop=income?"9999":fmt(new Date(+date.slice(0,4),+date.slice(5,7),0));
+    const stop=F.target?"9999":fmt(new Date(+date.slice(0,4),+date.slice(5,7),0));
     let run=p.bal, low=null, lowDate=date;
     for(const e of evs){
       if(e.date>stop) break;
@@ -527,86 +594,168 @@ function plan(c){
   const cash=[...byAcct.values()].reduce((s,v)=>s+v,0);
   const lastBill=cards.reduce((m,x)=>x.date>m?x.date:m,t);
   const incomeAhead=c.per.some(p=>p.ev.some(e=>e.inc&&e.date<=lastBill));
-  const out={cards,cash,amount,deadline,income,lastBill,incomeAhead,limit:cash,goal:false,asset:c.bal-c.unpaid};
   const [ty,tm]=curMo.split("-").map(Number);
-  out.daysLeft=new Date(ty,tm,0).getDate()-Number(t.slice(8))+1;
-  if(!amount||!deadline||deadline<curMo) return out;
-  // (2) 貯金：今の残高 − 未払い + 期限までの入金 − 期限までの固定費 − 目標
-  const dlEnd=fmt(new Date(+deadline.slice(0,4),+deadline.slice(5,7),0));
-  let months=0; for(let mo=curMo;mo<=deadline;mo=moAdd(mo,1)) months++;
+  const daysLeft=new Date(ty,tm,0).getDate()-Number(t.slice(8))+1;
+  // お金の流れ
   let committed=0;
   for(const x of c.upcoming) committed+=x.amount-x.items.reduce((s,it)=>s+(it.f?it.amount:0),0);
-  let fixedFuture=0;
+  const fixedMo=new Map();
   for(const f of S.fixed){const fc=f.card||"口座", amt=Number(f.amount)||0;
-    for(let mo=moAdd(curMo,-3);mo<=deadline;mo=moAdd(mo,1)){
+    for(let mo=moAdd(curMo,-3);mo<=F.flow[F.flow.length-1].mo;mo=moAdd(mo,1)){
       if(f.start&&mo<f.start) continue;
       const [y,m]=mo.split("-").map(Number), last=new Date(y,m,0).getDate();
-      if(billDate(fmt(new Date(y,m-1,Math.min(Number(f.day)||1,last))),fc)>t) fixedFuture+=amt;
+      if(billDate(fmt(new Date(y,m-1,Math.min(Number(f.day)||1,last))),fc)>t){const k=mo<curMo?curMo:mo;fixedMo.set(k,(fixedMo.get(k)||0)+amt)}
     }}
-  let listed=0; for(const p of c.per) for(const e of p.ev) if(e.inc&&e.date<=dlEnd) listed+=e.amount;
-  // 給与欄に入金がない来月以降の月だけ「毎月の手取り」を足す。今月分は給与欄にある分だけ数える
-  let extraMonths=0; for(let mo=moAdd(curMo,1);mo<=deadline;mo=moAdd(mo,1)) if(!incMonths.has(mo)) extraMonths++;
-  const extra=extraMonths*income;
-  // 今月使った額（使った日が今月）。分割は1回目だけ数え、残りは未払いとして毎月の枠から均等に引く
+  const fixedOf=mo=>fixedMo.get(mo)||0;
+  // 今月使った額。分割は1回目だけ数え、残りは未払いとして毎月の枠から均等に引く
   let spent=0;
   for(const e of S.entries) if(e.date.slice(0,7)===curMo){
     const n=e.card==="口座"?1:Math.max(1,Number(e.split)||1);
     spent+=splitParts(Number(e.amount)||0,n)[0];
   }
-  const avail=c.bal-committed+listed+extra-fixedFuture-amount;   // これから使えるお金の合計
-  const monthly=Math.floor((avail+spent)/months);                 // 今月はじめから見た1か月の枠
-  const remain=monthly-spent;
-  return {...out,goal:true,months,committed,fixedFuture,listed,extra,extraMonths,spent,avail,monthly,remain,
-    limit:Math.min(Math.max(0,remain),cash)};
+  const start=c.bal-committed, asset=c.bal-c.unpaid;
+  const goals=S.settings.goals.slice().sort((a,b)=>goalKey(a)<goalKey(b)?-1:goalKey(a)>goalKey(b)?1:0);
+  // (2) 期限ごとの枠
+  const dated=goals.filter(g=>g.date);
+  const dls=[...new Set(dated.map(g=>g.date.slice(0,7)))].filter(mo=>mo>=curMo).sort();
+  const limits=dls.map(mo=>{
+    let months=0, listed=0, extra=0, extraMonths=0, fixed=0;
+    for(const x of F.flow){ if(x.mo>mo) break; months++; listed+=x.listed; extra+=x.syn; if(x.syn) extraMonths++; fixed+=fixedOf(x.mo) }
+    const need=dated.filter(g=>g.date.slice(0,7)<=mo).reduce((s,g)=>s+(Number(g.amount)||0),0);
+    const avail=start+listed+extra-fixed-need;
+    return {mo,months,listed,extra,extraMonths,fixed,need,avail,monthly:Math.floor((avail+spent)/months),names:dated.filter(g=>g.date.slice(0,7)===mo).map(g=>g.name)};
+  });
+  const bind=limits.length?limits.reduce((a,b)=>b.monthly<a.monthly?b:a):null;
+  const monthly=bind?bind.monthly:null, remain=bind?monthly-spent:null;
+  // この調子だと：最近の使い方が続くとして、月末ごとに残るお金を積み上げる（早い目標から順に達成）
+  const {pace,months:paceMonths}=spendPace(c);
+  const simAt=[]; let a=start;
+  for(const x of F.flow){ const use=pace===null?0:(x.mo===curMo?Math.max(0,pace-spent):pace); a+=x.inc-fixedOf(x.mo)-use; simAt.push({mo:x.mo,bal:a}) }
+  let cum=0, left=Math.max(0,asset);
+  const goalRows=goals.map(g=>{
+    const amt=Number(g.amount)||0; cum+=amt;
+    const saved=Math.min(left,amt); left-=saved;
+    const done=saved>=amt;
+    const hit=done?null:simAt.find(x=>x.bal>=cum);
+    const dlMo=g.date?g.date.slice(0,7):"";
+    let months=0; if(dlMo>=curMo) for(const x of F.flow){ if(x.mo>dlMo) break; months++ }
+    const needEach=dlMo>=curMo?Math.ceil((amt-saved)/months):null;
+    let status=""; if(done) status="達成";
+    else if(g.date&&dlMo<curMo) status="期限切れ";
+    else if(g.date&&pace!==null) status=hit&&hit.mo<=dlMo?"間に合う":"遅れそう";
+    return {g,saved,done,hit,status,needEach,cum};
+  });
+  // 給与の範囲：今月使った分は主に来月引き落とされ、今月入る給与で払う。
+  // 給与見込みから、来月すでに決まっている請求（前からの分割・固定費）を引いた額までが、無理なく使える額
+  const nextMo=moAdd(curMo,1), thisInc=S.incomes.filter(i=>i.date.slice(0,7)===curMo);
+  const salaryBase=thisInc.length?thisInc.reduce((s,i)=>s+incVal(i),0):F.target;
+  let carry=0;
+  for(const x of c.upcoming) if(x.date.slice(0,7)===nextMo)
+    for(const it of x.items) if(it.f||!it.e||it.e.date.slice(0,7)!==curMo||it.k>0) carry+=it.amount;
+  for(const e of c.per.flatMap(p=>p.ev)) if(!e.inc&&e.fixed&&e.date.slice(0,7)===nextMo) carry-=e.amount;
+  const salaryRoom=salaryBase-carry;
+  // おすすめ＝給与の範囲と、全部の目標に間に合う枠の少ない方。自分で決めた額があればそれを使う
+  const hasSalary=salaryBase>0;
+  const rec=hasSalary&&bind?Math.min(salaryRoom,monthly):hasSalary?salaryRoom:bind?monthly:null;
+  const recBy=rec===null?"":bind&&(!hasSalary||monthly<salaryRoom)?"goal":"salary";
+  const own=Number(S.settings.spendLimit)||0;
+  const budget=own||rec, budgeted=budget!==null;
+  const budgetRemain=budgeted?budget-spent:null;
+  const limit=budgeted?Math.min(Math.max(0,budgetRemain),cash):cash;
+  return {cards,cash,lastBill,incomeAhead,daysLeft,limit,goal:bind!==null,budgeted,budget,budgetRemain,own,rec,recBy,salaryBase,carry,salaryRoom,hasSalary,asset,spent,monthly,remain,bind,limits,goalRows,pace,paceMonths,F,fixedOf,start,committed};
 }
-const cardLimit=(pl,x)=>pl.goal?Math.min(Math.max(0,pl.remain),x.cap):x.cap;
+const cardLimit=(pl,x)=>pl.budgeted?Math.min(Math.max(0,pl.budgetRemain),x.cap):x.cap;
 function renderPlan(c){
-  const pl=plan(c), daily=Math.floor(pl.limit/pl.daysLeft);
+  const pl=plan(c), daily=Math.floor(pl.limit/pl.daysLeft), F=pl.F;
   const pace=pl.limit>0?`1日あたり <span class="num">${yen(daily)}</span>`:"今月はこれ以上使わない計算です";
   $("recBudget").innerHTML=`<span>今月カードで使える額<br><span class="muted" style="font-size:12px">${pace}</span></span><b class="num ${pl.limit<=0?"neg":""}">あと ${yen(pl.limit)}</b>`;
-  const noBal=pl.cards.some(x=>x.noBal);
+  const noBal=pl.cards.some(x=>x.noBal), budgetBinds=pl.budgeted&&Math.max(0,pl.budgetRemain)<=pl.cash;
   $("planMain").innerHTML=`<div class="l">今月カードで使える額（どのカードでも）</div><div class="v num ${pl.limit<=0?"neg":""}">${yen(pl.limit)}</div>
-    <div class="d">${pl.goal
-      ?`貯金の目標から見た今月の残り ${yen(Math.max(0,pl.remain))} と、引き落とし日の口座の余裕 ${yen(pl.cash)} の少ない方。`
-      :`引き落とし日に口座がマイナスにならない上限です。目標を入れると、貯金する分を除いた額になります。`}
+    <div class="d">${pl.budgeted
+      ?`今月使う額の残り ${yen(Math.max(0,pl.budgetRemain))} と、引き落とし日の口座の余裕 ${yen(pl.cash)} の少ない方。${budgetBinds?"":"いまは口座の余裕で決まっています。"}`
+      :`引き落とし日に口座がマイナスにならない上限です。給与見込みを入れると、給与の範囲で計算します。`}
     月末まであと${pl.daysLeft}日${pl.limit>0?`、1日あたり${yen(daily)}`:""}。${!pl.incomeAhead?`<br>${md(pl.lastBill)}までの入金が給与欄にないので、入金なしで計算しています。`:""}${noBal?"<br>残高が未入力の口座があります。":""}</div>`;
   $("planCards").innerHTML=pl.cards.map(x=>`<div class="bill"><div class="top2"><span>${esc(x.card)}${multi()?`<span class="tag">${esc(acctName(x.acct))}</span>`:""}</span><b class="num ${cardLimit(pl,x)<=0?"neg":""}">${yen(cardLimit(pl,x))}</b></div>
     <div class="l">今日使うと${md(x.date)}に引き落とし（その請求は今 ${yen(x.billed)}）</div>
     <div class="l">口座の余裕 <span class="num ${x.low<0?"neg":""}">${yen(x.low)}</span>（${md(x.lowDate)}の時点）</div></div>`).join("");
-  // 目標フォーム（入力中は書き換えない）
-  if(!$("fGoal").contains(document.activeElement)){
-    $("goalAmt").value=comma(pl.amount); $("goalDl").value=pl.deadline; $("goalInc").value=comma(pl.income);
-  }
+  const row=(l,v,cls="")=>`<div class="planrow"><span class="muted">${l}</span><span class="${cls}">${v}</span></div>`;
+  // 今月使う額：給与見込み・請求・目標からのおすすめと、自分で決めた額
+  let bi="";
+  if(pl.hasSalary) bi+=row("今月の給与（見込み）",`<span class="num">${yen(pl.salaryBase)}</span>`)
+    +row("− 来月すでに決まっている請求",`<span class="num">${yen(pl.carry)}</span>`)
+    +row("＝ 給与の範囲で使える額",`<span class="num ${pl.salaryRoom<0?"neg":""}">${yen(pl.salaryRoom)}</span>`);
+  if(pl.goal) bi+=row(`全部の目標に間に合う枠（${esc(pl.bind.names.join("・"))}）`,`<span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span>`);
+  if(pl.rec!==null) bi+=`<div class="planrow total"><span>おすすめの額（${pl.recBy==="goal"?"目標で決まり":"給与で決まり"}）</span><span class="num ${pl.rec<0?"neg":""}">${yen(pl.rec)}</span></div>`;
+  if(pl.own) bi+=row("自分で決めた額",`<span class="num">${yen(pl.own)}</span>`);
+  if(pl.budgeted) bi+=row("今月使った額",`<span class="num">${yen(pl.spent)}</span>`)
+    +`<div class="planrow total"><span>今月の残り</span><span class="num ${pl.budgetRemain<0?"neg":""}">${yen(pl.budgetRemain)}</span></div>`;
+  if(pl.own&&pl.rec!==null&&pl.own>pl.rec) bi+=`<p class="neg" style="font-size:13px;margin:8px 0 0">自分で決めた額が、おすすめより${yen(pl.own-pl.rec)}多くなっています。${pl.recBy==="goal"?"目標に間に合わなくなる":"給与だけでは払いきれず、貯金から出る"}計算です。</p>`;
+  if(!pl.budgeted) bi+=`<p class="muted" style="font-size:13px;margin:0">給与欄か「月々の給与見込み」を入れると、おすすめの額が出ます。</p>`;
+  $("budgetInfo").innerHTML=bi;
+  if(!$("fBudget").contains(document.activeElement)) $("bLimit").value=comma(pl.own);
+  // 目標の一覧
+  if(!$("goalList").contains(document.activeElement)) $("goalList").innerHTML=pl.goalRows.length?pl.goalRows.map(r=>{
+    const g=r.g, amt=Number(g.amount)||0, ratio=amt?r.saved/amt:0;
+    const tagCls=r.status==="遅れそう"||r.status==="期限切れ"?"warn":"";
+    const paceTxt=r.done?"達成しています":pl.pace===null?"記録がたまると出ます":r.hit?`${ymLabel(r.hit.mo)}ごろ`:"10年以内には届きません";
+    return `<div class="bill"><div class="top2"><span>${esc(g.name)}${r.status?`<span class="tag ${tagCls}">${r.status}</span>`:""}</span><b class="num">${yen(amt)}</b></div>
+      <div class="meter" role="img" aria-label="${esc(g.name)}の${Math.round(ratio*100)}%"><span style="width:${ratio*100}%"></span></div>
+      ${row("今たまっている分",`<span class="num">${yen(r.saved)}（${Math.round(ratio*100)}%）</span>`)}
+      ${row("この日までに達成したい",g.date?ymdLabel(g.date):"未設定")}
+      ${row("この調子だと",paceTxt,r.status==="遅れそう"?"neg":"")}
+      ${g.expect?row("自分の想定",ymdLabel(g.expect)):""}
+      ${r.needEach!==null&&!r.done?row("間に合わせるには毎月",`<span class="num">${yen(r.needEach)}</span>`):""}
+      <div class="btns" style="justify-content:flex-end"><button class="mini" type="button" data-gedit="${esc(g.id)}">直す</button><button class="mini" type="button" data-gdel="${esc(g.id)}">削除</button></div></div>`}).join("")
+    :`<div class="empty">まだ目標がありません。下の欄から追加してください。</div>`;
+  // 全部の目標をあわせた判断
   let h="";
-  if(pl.amount){
-    const ratio=Math.max(0,Math.min(1,pl.asset/pl.amount)), rest=pl.amount-pl.asset;
-    h+=`<div class="planrow"><span>今の実際の資産</span><b class="num ${pl.asset<0?"neg":""}">${yen(pl.asset)}</b></div>
-      <div class="meter" role="img" aria-label="目標の${Math.round(ratio*100)}%"><span style="width:${ratio*100}%"></span></div>
-      <div class="planrow"><span class="muted">目標 ${yen(pl.amount)} の${Math.round(ratio*100)}%</span><span class="num">${rest>0?`あと ${yen(rest)}`:"達成"}</span></div>`;
+  if(pl.goalRows.length){
+    h+=`<h3 style="margin-top:14px">全部の目標をあわせると</h3>`;
+    h+=row("最近の使い方（月平均）",pl.pace===null?"記録がたまると出ます":`<span class="num">${yen(pl.pace)}</span>`);
+    if(pl.goal){const b=pl.bind;
+      h+=row("1か月に使える額",`<span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span>`)+row("今月使った額",`<span class="num">${yen(pl.spent)}</span>`);
+      h+=`<div class="planrow total"><span>今月の残り</span><span class="num ${pl.remain<0?"neg":""}">${yen(pl.remain)}</span></div>`;
+      if(b.avail<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">これ以上まったく使わなくても、${ymLabel(b.mo)}までの目標に${yen(-b.avail)}足りません。${F.target?"期限か目標金額を見直してください。":"月々の給与見込みを入れると計算が変わります。"}</p>`;
+      else if(pl.remain<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">今月は枠を${yen(-pl.remain)}超えています。超えた分は来月以降の枠から減ります。</p>`;
+      if(!F.target&&b.months>1) h+=`<p class="muted" style="font-size:12px;margin:8px 0 0">給与見込みがないので、給与欄にある入金だけで計算しています。</p>`;
+      h+=`<details><summary>計算の内訳（一番きつい ${ymLabel(b.mo)} まで）</summary>
+        ${row("口座残高の合計",`<span class="num">${yen(c.bal)}</span>`)}
+        ${row("− 未払いの請求（固定費以外）",`<span class="num">${yen(pl.committed)}</span>`)}
+        ${row("＋ 給与欄の入金",`<span class="num">${yen(b.listed)}</span>`)}
+        ${row(`＋ 給与見込みの分（${b.extraMonths}か月）`,`<span class="num">${yen(b.extra)}</span>`)}
+        ${row("− 固定費",`<span class="num">${yen(b.fixed)}</span>`)}
+        ${row("− この月までの目標の合計",`<span class="num">${yen(b.need)}</span>`)}
+        <div class="planrow total"><span>これから使えるお金</span><span class="num ${b.avail<0?"neg":""}">${yen(b.avail)}</span></div>
+        ${row("＋ 今月すでに使った額",`<span class="num">${yen(pl.spent)}</span>`)}
+        ${row(`÷ ${b.months}か月 ＝ 1か月に使える額`,`<span class="num">${yen(b.monthly)}</span>`)}
+        ${pl.limits.length>1?`<h3>期限ごとの1か月の枠（一番少ない額を使います）</h3>`+pl.limits.map(x=>row(`${ymLabel(x.mo)}まで（${esc(x.names.join("・"))}）`,`<span class="num">${yen(x.monthly)}</span>`)).join(""):""}
+        <p class="muted" style="font-size:12px;margin:6px 0 0">目標は早い順にお金を割り当て、月単位で計算します。今月の入金は給与欄にある分だけ数えます。分割払いは1回目を今月の分に数え、残りは未払いとして毎月の枠から均等に引きます。</p>
+      </details>`;
+    }
   }
-  if(pl.goal){
-    h+=`<div class="planrow"><span>毎月ふやす額（あと${pl.months}か月）</span><span class="num">${yen(Math.max(0,Math.ceil((pl.amount-pl.asset)/pl.months)))}</span></div>
-      <div class="planrow"><span>1か月に使える額</span><span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span></div>
-      <div class="planrow"><span>今月使った額</span><span class="num">${yen(pl.spent)}</span></div>
-      <div class="planrow total"><span>今月の残り</span><span class="num ${pl.remain<0?"neg":""}">${yen(pl.remain)}</span></div>`;
-    if(pl.avail<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">これ以上まったく使わなくても、期限までに${yen(-pl.avail)}足りません。${pl.income?"期限か目標金額を見直してください。":"毎月の手取りを入れると計算が変わります。"}</p>`;
-    else if(pl.remain<0) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">今月は枠を${yen(-pl.remain)}超えています。超えた分は来月以降の枠から減ります。</p>`;
-    if(!pl.income&&pl.extraMonths) h+=`<p class="muted" style="font-size:12px;margin:8px 0 0">毎月の手取りが空欄なので、給与欄にある入金だけで計算しています。</p>`;
-    h+=`<details><summary>計算の内訳</summary>
-      <div class="planrow"><span>口座残高の合計</span><span class="num">${yen(c.bal)}</span></div>
-      <div class="planrow"><span>− 未払いの請求（固定費以外）</span><span class="num">${yen(pl.committed)}</span></div>
-      <div class="planrow"><span>＋ 給与欄の入金（期限まで）</span><span class="num">${yen(pl.listed)}</span></div>
-      <div class="planrow"><span>＋ 毎月の手取り × ${pl.extraMonths}か月</span><span class="num">${yen(pl.extra)}</span></div>
-      <div class="planrow"><span>− 固定費（期限まで）</span><span class="num">${yen(pl.fixedFuture)}</span></div>
-      <div class="planrow"><span>− 目標金額</span><span class="num">${yen(pl.amount)}</span></div>
-      <div class="planrow total"><span>これから使えるお金</span><span class="num ${pl.avail<0?"neg":""}">${yen(pl.avail)}</span></div>
-      <div class="planrow"><span>＋ 今月すでに使った額</span><span class="num">${yen(pl.spent)}</span></div>
-      <div class="planrow"><span>÷ ${pl.months}か月 ＝ 1か月に使える額</span><span class="num ${pl.monthly<0?"neg":""}">${yen(pl.monthly)}</span></div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0">今月の入金は給与欄にある分だけ数えます。分割払いは1回目を今月の分に数え、残りは未払いとして毎月の枠から均等に引きます。</p>
-    </details>`;
-  } else if(pl.amount&&!pl.deadline) h+=`<p class="muted" style="font-size:13px;margin:8px 0 0">「いつまでに」を入れると、1か月に使える額を計算します。</p>`;
-  else if(pl.amount&&pl.deadline<c.curMo) h+=`<p class="neg" style="font-size:13px;margin:8px 0 0">期限が過ぎています。「いつまでに」を入れ直してください。</p>`;
-  $("planGoal").innerHTML=h; $("planGoal").hidden=!h;
+  $("planSummary").innerHTML=h;
+  // 給与の目標と年の上限
+  const st=S.settings;
+  if(!$("fSalary").contains(document.activeElement)){
+    $("sExpect").value=comma(st.monthlyExpect); $("sTarget").value=comma(st.monthlyIncome); $("sCap").value=comma(st.incomeCap); $("sOther").value=comma(F.other);
+  }
+  const yr=F.curY, inYear=S.incomes.filter(i=>i.date.slice(0,4)===yr);
+  const got=F.other+inYear.filter(i=>i.date<=c.today).reduce((s,i)=>s+incVal(i),0);
+  const planned=inYear.filter(i=>i.date>c.today).reduce((s,i)=>s+incVal(i),0);
+  const syn=F.flow.filter(x=>x.mo.slice(0,4)===yr).reduce((s,x)=>s+x.syn,0);
+  const total=got+planned+syn, cap=F.cap, ratio=cap?Math.min(1,total/cap):0;
+  const openMonths=F.flow.filter(x=>x.mo>c.curMo&&x.mo.slice(0,4)===yr&&!F.incMonths.has(x.mo)).length;
+  const thisMo=S.incomes.filter(i=>i.date.slice(0,7)===c.curMo).reduce((s,i)=>s+incVal(i),0);
+  let si=`<div class="planrow"><span>${+yr}年の給与（見込み込み）</span><b class="num">${yen(total)}</b></div>`;
+  if(cap) si+=`<div class="meter" role="img" aria-label="年の上限の${Math.round(ratio*100)}%"><span style="width:${ratio*100}%;${total>cap?"background:var(--chart-neg)":""}"></span></div>
+    <div class="planrow"><span class="muted">上限 ${yen(cap)} の${Math.round(total/cap*100)}%</span><span class="num ${total>cap?"neg":""}">${total>cap?`${yen(total-cap)} 超えています`:`あと ${yen(cap-total)}`}</span></div>`;
+  si+=row("もう入った分",`<span class="num">${yen(got)}</span>`)+row("給与欄の予定",`<span class="num">${yen(planned)}</span>`)+row("給与見込みの分",`<span class="num">${yen(syn)}</span>`);
+  if(F.goalSalary) si+=row(`今月（${+c.curMo.slice(5)}月）の給与と目標の差`,`<span class="num ${thisMo<F.goalSalary?"neg":"pos"}">${thisMo>=F.goalSalary?"+":""}${yen(thisMo-F.goalSalary)}</span>`);
+  if(cap&&openMonths) si+=row(`今年の残り${openMonths}か月で、月あたり`,`<span class="num">${yen(Math.max(0,Math.floor((cap-got-planned)/openMonths)))}まで</span>`);
+  if(cap&&F.goalSalary&&F.goalSalary*12>cap) si+=`<p class="muted" style="font-size:12px;margin:8px 0 0">給与目標×12か月は${yen(F.goalSalary*12)}で上限を超えます。上限内に収める月額は${yen(Math.floor(cap/12))}です。</p>`;
+  if(F.clipped) si+=`<p class="neg" style="font-size:13px;margin:8px 0 0">今年は給与見込みのままだと上限に届くので、超える分を除いて計算しています。</p>`;
+  if(!F.other) si+=`<p class="muted" style="font-size:12px;margin:8px 0 0">給与欄に入っていない今年の給与を入れないと、上限までの残りが実際より多く出ます。</p>`;
+  $("salaryInfo").innerHTML=si;
 }
 
 function chips(el,list,get,set,label=v=>v){
@@ -631,7 +780,7 @@ function updateHint(){
   const from=multi()?`（${acctName(card==="口座"?payAcct:cardAcct(card,bd))}から）`:"";
   const amtNow=toNum($("amt").value), thisMo=d.slice(0,7)===today().slice(0,7)&&!editingId;
   if(card==="口座"){let tail="";
-    if(amtNow&&thisMo){const pl=plan(compute()); if(pl.goal) tail=`。使うと今月の残りは${yen(pl.remain-amtNow)}`}
+    if(amtNow&&thisMo){const pl=plan(compute()); if(pl.budgeted) tail=`。使うと今月の残りは${yen(pl.budgetRemain-amtNow)}`}
     $("hint").textContent=`${fut}${md(bd)}に口座から出るお金として計算します${from}${tail}`;return}
   const n=Number($("split").value)||1;
   if(n===1){let tail="";
@@ -850,14 +999,37 @@ $("bills").addEventListener("click",async e=>{const b=e.target.closest("[data-bf
   b.blur(); if(inp) inp.blur();
   await write(()=>{if(v==="") delete S.settings.billFix[key]; else S.settings.billFix[key]=toNum(v)}, v===""?"確定額を消して、記録の合計に戻しました":`確定額 ${yen(toNum(v))} を保存しました`)});
 
-// 計画：貯金の目標
+// 計画：貯金の目標（複数）
+let editingGoal=null;
+function resetGoalForm(){editingGoal=null;$("gName").value="";$("gAmt").value="";$("gDate").value="";$("gExpect").value="";
+  $("goalFormTitle").textContent="目標を追加";$("gSubmit").textContent="目標を追加";$("gCancel").hidden=true}
+$("gCancel").onclick=resetGoalForm;
 $("fGoal").addEventListener("submit",async e=>{e.preventDefault();
-  const amount=toNum($("goalAmt").value), deadline=$("goalDl").value, income=toNum($("goalInc").value);
+  const amount=toNum($("gAmt").value), name=$("gName").value.trim(); if(!amount||!name) return;
+  const d={name,amount,date:$("gDate").value,expect:$("gExpect").value}, id=editingGoal;
   if(document.activeElement) document.activeElement.blur();
-  await write(()=>{S.settings.goal={amount,deadline,income}},amount?"目標を保存しました":"目標を消しました")});
+  if(await write(()=>{if(id){Object.assign(S.settings.goals.find(g=>g.id===id),d)}else S.settings.goals.push({id:"g"+newId().slice(0,8),...d})},id?"目標を直しました":`「${name}」を追加しました`)) resetGoalForm()});
+$("goalList").addEventListener("click",async e=>{
+  const ed=e.target.closest("[data-gedit]");
+  if(ed){const g=S.settings.goals.find(x=>x.id===ed.dataset.gedit); if(!g) return;
+    editingGoal=g.id;$("gName").value=g.name;$("gAmt").value=comma(g.amount);$("gDate").value=g.date||"";$("gExpect").value=g.expect||"";
+    $("goalFormTitle").textContent=`「${g.name}」を直す`;$("gSubmit").textContent="直す";$("gCancel").hidden=false;
+    $("fGoal").scrollIntoView({behavior:"smooth",block:"center"});return}
+  const dl=e.target.closest("[data-gdel]"); if(!dl) return;
+  if(!dl.dataset.armed){dl.dataset.armed="1";dl.textContent="本当に削除";dl.classList.add("danger");return}
+  const id=dl.dataset.gdel; dl.blur();
+  if(await write(()=>{S.settings.goals=S.settings.goals.filter(g=>g.id!==id)},"目標を削除しました")&&editingGoal===id) resetGoalForm()});
+$("fBudget").addEventListener("submit",async e=>{e.preventDefault();
+  const v=toNum($("bLimit").value);
+  if(document.activeElement) document.activeElement.blur();
+  await write(()=>{S.settings.spendLimit=v},v?`1か月に使う額を${yen(v)}にしました`:"おすすめの額を使います")});
+$("fSalary").addEventListener("submit",async e=>{e.preventDefault();
+  const expect=toNum($("sExpect").value), target=toNum($("sTarget").value), cap=toNum($("sCap").value), other=toNum($("sOther").value);
+  if(document.activeElement) document.activeElement.blur();
+  await write(()=>{const st=S.settings;st.monthlyExpect=expect;st.monthlyIncome=target;st.incomeCap=cap;st.incomeOther={year:today().slice(0,4),amount:other}},"保存しました")});
 
 // 設定：口座
-for(const id of ["newAcctBal","incAmt","incAct","fixAmt","goalAmt","goalInc"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+for(const id of ["newAcctBal","incAmt","incAct","fixAmt","gAmt","sExpect","sTarget","sCap","sOther","bLimit"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
 $("fAcct").addEventListener("submit",async e=>{e.preventDefault();
   const name=$("newAcctName").value.trim(); if(!name) return; const v=$("newAcctBal").value.trim();
   if(await write(()=>accts().push({id:"a"+newId().slice(0,8),name,balance:v===""?"":toNum(v),baseDate:today()}),`${name}を追加しました`)){$("newAcctName").value="";$("newAcctBal").value=""}});
