@@ -212,6 +212,11 @@ nav.tabs button{font-size:14px;padding:10px 2px}
 .fold>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:-3px 4px 0 12px;flex:none}
 .fold[open]>summary::after{transform:rotate(-135deg);margin-top:3px}
 .note{font-size:13px;color:var(--muted);margin:0}
+.moafter{font-size:14px;padding:6px 0 2px}
+.moafter>div{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.moafter b{font-size:15px}
+.moafter .sub{font-size:13px;color:var(--muted);padding-left:1em}
+.mtable th,.mtable td{white-space:nowrap}
 #paid .item{padding-left:0}
 /* 引き落としの一覧 */
 .mohead{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:12px 0 2px;border-bottom:1px solid var(--line)}
@@ -293,6 +298,8 @@ details:not(.fold) summary{font-size:14px;color:var(--muted)}
       <div class="readout" id="readout"></div>
       <div class="chart-title"><span>請求額</span><span class="muted" style="font-weight:400">その月に引き落とされる合計</span></div>
       <div class="chart" id="chBills"></div>
+      <div class="chart-title"><span>引き落とし後の残高</span><span class="muted" style="font-weight:400">その月の最後の引き落としの後</span></div>
+      <div class="chart" id="chAfter"></div>
       <div class="chart-title"><span>月末の資産</span><span class="muted" style="font-weight:400">全口座の月末残高（見込み）</span></div>
       <div class="chart" id="chAssets"></div>
       <div style="overflow-x:auto"><table class="mtable" id="byMonth"></table></div>
@@ -438,7 +445,7 @@ details:not(.fold) summary{font-size:14px;color:var(--muted)}
       </div>
     </details>
 
-    <p class="note" style="text-align:center">アプリの版：11/8 全体の見やすさ改善</p>
+    <p class="note" style="text-align:center">アプリの版：11/8 引き落とし後の残高</p>
   </section>
 </div>
 
@@ -608,11 +615,16 @@ function compute(){
   let lastMo=horizon.slice(0,7); if(lastMo>moAdd(curMo,11)) lastMo=moAdd(curMo,11);
   const chart=[];
   for(let mo=moAdd(curMo,-2);mo<=lastMo;mo=moAdd(mo,1)){
-    let endBal=null;
+    let endBal=null, afterBal=null, afterDate="", afterAcct=[];
     if(mo>=curMo){const me=fmt(new Date(+mo.slice(0,4),+mo.slice(5,7),0));
-      endBal=per.reduce((s,p)=>s+p.bal+p.ev.reduce((a,e)=>a+(e.date<=me?e.amount:0),0),0)}
+      const balAt=(p,d)=>p.bal+p.ev.reduce((a,e)=>a+(e.date<=d?e.amount:0),0);
+      endBal=per.reduce((s,p)=>s+balAt(p,me),0);
+      afterDate=per.flatMap(p=>p.ev).reduce((d,e)=>e.amount<0&&e.date.slice(0,7)===mo&&e.date>d?e.date:d,"");
+      const d=afterDate||(mo===curMo?t:me);
+      afterAcct=per.map(p=>({name:p.a.name,bal:balAt(p,d)}));
+      afterBal=afterAcct.reduce((s,x)=>s+x.bal,0)}
     if(!chart.length&&!billMo.get(mo)&&endBal===null) continue;
-    chart.push({mo,bills:billMo.get(mo)||0,endBal});
+    chart.push({mo,bills:billMo.get(mo)||0,endBal,afterBal,afterDate,afterAcct});
   }
   const all=[...groups.values()].sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0);
   return {today:t,per,bal:sum("bal"),unpaid:sum("unpaid"),incomeSum:sum("incomeSum"),final:sum("final"),room:sum("room"),mOut:sum("mOut"),
@@ -914,19 +926,20 @@ function barSVG(rows,key,sel,cur){
     labs+=`<text x="${cx}" y="${H-5}" text-anchor="middle" class="${r.mo===cur?"cur":""}">${moLabel(r.mo,cur)}</text>`;
     hits+=`<rect class="hit" data-i="${i}" x="${L+cw*i}" y="0" width="${cw}" height="${H}"><title>${moLabel(r.mo,cur)} ${v===null?"—":yen(v)}</title></rect>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${key==="bills"?"月ごとの請求額":"月末の資産"}のグラフ">${g}${bars}${labs}${hits}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${{bills:"月ごとの請求額",afterBal:"引き落とし後の残高",endBal:"月末の資産"}[key]}のグラフ">${g}${bars}${labs}${hits}</svg>`;
 }
 let chartSel=null;
 function renderCharts(c){
   const rows=c.chart;
   if(chartSel===null||chartSel>=rows.length) chartSel=Math.max(0,rows.findIndex(r=>r.mo===c.curMo));
   const r=rows[chartSel];
-  $("readout").innerHTML=r?`<b>${moLabel(r.mo,c.curMo)}${r.mo===c.curMo?"（今月）":""}</b><span>請求額 <span class="num">${yen(r.bills)}</span></span><span>月末の資産 <span class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</span></span>`:"まだデータがありません。";
+  $("readout").innerHTML=r?`<b>${moLabel(r.mo,c.curMo)}${r.mo===c.curMo?"（今月）":""}</b><span>請求額 <span class="num">${yen(r.bills)}</span></span><span>引き落とし後 <span class="num ${r.afterBal<0?"neg":""}">${r.afterBal===null?"—":yen(r.afterBal)}</span></span><span>月末の資産 <span class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</span></span>`:"まだデータがありません。";
   $("chBills").innerHTML=barSVG(rows,"bills",chartSel,c.curMo);
+  $("chAfter").innerHTML=barSVG(rows,"afterBal",chartSel,c.curMo);
   $("chAssets").innerHTML=barSVG(rows,"endBal",chartSel,c.curMo);
-  $("byMonth").innerHTML=rows.length?`<thead><tr><th>月</th><th>請求額</th><th>月末の資産</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.mo===c.curMo?"cur":""}"><td>${moLabel(r.mo,c.curMo)}</td><td class="num">${yen(r.bills)}</td><td class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</td></tr>`).join("")}</tbody>`:"";
+  $("byMonth").innerHTML=rows.length?`<thead><tr><th>月</th><th>請求額</th><th>引き落とし後</th><th>月末の資産</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.mo===c.curMo?"cur":""}"><td>${moLabel(r.mo,c.curMo)}</td><td class="num">${yen(r.bills)}</td><td class="num ${r.afterBal<0?"neg":""}">${r.afterBal===null?"—":yen(r.afterBal)}</td><td class="num ${r.endBal<0?"neg":""}">${r.endBal===null?"—":yen(r.endBal)}</td></tr>`).join("")}</tbody>`:"";
 }
-for(const id of ["chBills","chAssets"]){
+for(const id of ["chBills","chAfter","chAssets"]){
   const pick=e=>{const h=e.target.closest(".hit");if(!h)return;const i=Number(h.dataset.i);if(i===chartSel)return;chartSel=i;renderCharts(compute())};
   $(id).addEventListener("click",pick); $(id).addEventListener("mouseover",pick);
 }
@@ -947,7 +960,9 @@ function render(){
     return `<div class="item ${one?"one":""}" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")} · ${md(e.date)}${e.memo?" · "+esc(e.memo):""}${e.date>today()?'<span class="tag">予定</span>':""}${it.n>1?`<span class="tag">分割 ${it.k+1}/${it.n}</span>`:""}</div></div>${amt}</div>`};
   $("upcoming").innerHTML=c.upcoming.length?c.upcoming.map(g=>{
     const mo=g.date.slice(0,7); let head="";
-    if(mo!==upMo){upMo=mo;head=`<div class="mohead"><span>${+mo.slice(5)}月の引き落とし</span><span class="num">${yen(moTotal.get(mo))}</span></div>`}
+    if(mo!==upMo){upMo=mo;const ch=c.chart.find(x=>x.mo===mo);
+      head=`<div class="mohead"><span>${+mo.slice(5)}月の引き落とし</span><span class="num">${yen(moTotal.get(mo))}</span></div>`
+        +(ch&&ch.afterBal!==null?`<div class="moafter"><div><span>引き落とし後の残高${ch.afterDate?`（${md(ch.afterDate)}）`:""}</span><b class="num ${ch.afterBal<0?"neg":""}">${yen(ch.afterBal)}</b></div>${multi()?ch.afterAcct.map(x=>`<div class="sub"><span>${esc(x.name)}</span><span class="num ${x.bal<0?"neg":""}">${yen(x.bal)}</span></div>`).join(""):""}</div>`:"")}
     const items=g.items.slice().sort((a,b)=>((b.e||{}).date||"")<((a.e||{}).date||"")?-1:1), one=items.length===1&&!(g.fixed&&g.recorded!==g.amount);
     return head+`<div class="group"><div class="ghead"><span><span class="gd num">${md(g.date)}</span>${esc(g.card==="口座"?"口座から":g.card)}${multi()?`<span class="gacct">${esc(acctName(g.acct))}</span>`:""}${g.fixed?'<span class="tag">確定</span>':""}</span><span class="num">${yen(g.amount)}</span></div>${items.map(it=>upItem(it,one)).join("")}${g.fixed&&g.recorded!==g.amount?`<div class="l" style="padding-left:3.2em">記録の合計 ${yen(g.recorded)}（確定額との差 ${yen(g.amount-g.recorded)}）</div>`:""}</div>`}).join("")
     :`<div class="empty">まだ記録がありません。上の欄に金額を入れて「記録する」を押すと、ここに引き落とし日ごとにまとまります。</div>`;
