@@ -192,6 +192,7 @@ h3:first-child{margin-top:0}
 
     <div class="card stack">
       <h2>カードの引き落とし口座</h2>
+      <p class="muted" style="font-size:12px;margin:0">変えると、今月の請求分からその口座で計算します。先月までの分は元の口座のままです。</p>
       <div class="cardmap" id="cardMap"></div>
     </div>
 
@@ -256,7 +257,7 @@ h3:first-child{margin-top:0}
         <span>口座</span><span>その日に口座から出る</span>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数口座・請求額・分割払い</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数口座・請求額・分割払い（2）</p>
     </div>
   </section>
 </div>
@@ -603,11 +604,12 @@ $("fAcct").addEventListener("submit",async e=>{e.preventDefault();
   if(await write(()=>accts().push({id:"a"+newId().slice(0,8),name,balance:v===""?"":toNum(v),baseDate:today()}),`${name}を追加しました`)){$("newAcctName").value="";$("newAcctBal").value=""}});
 $("cardMap").addEventListener("change",async e=>{const s=e.target.closest("[data-cardacct]");if(!s)return;
   const cd=s.dataset.cardacct; s.blur();
-  const t=today();
+  // 今月の請求分から切り替える（今月1日以降の引き落としが新しい口座になる）
+  const t=today().slice(0,7)+"-01";
   await write(()=>{const H=S.settings.cardAccountHist=S.settings.cardAccountHist||{};
     if(!Array.isArray(H[cd])||!H[cd].length) H[cd]=[{from:"0000-00-00",acct:cardAcct(cd,"9999")}];
     H[cd]=H[cd].filter(x=>x.from<t); H[cd].push({from:t,acct:s.value}); S.settings.cardAccount[cd]=s.value},
-    `${cd}は${md(t)}以降の引き落としから${acctName(s.value)}にします`)});
+    `${cd}は今月（${+t.slice(5,7)}月）の請求分から${acctName(s.value)}で引き落とします`)});
 $("fInc").addEventListener("submit",async e=>{e.preventDefault();
   const act=toNum($("incAct").value), amount=toNum($("incAmt").value)||act; if(!amount){$("incAmt").focus();return}
   // 実際の額も入れたら、その場で口座残高に足す（一覧の「保存」と同じ扱い）
