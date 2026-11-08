@@ -243,14 +243,12 @@ h3:first-child{margin-top:0}
       <div class="btns"><button class="btn sub" id="gSubmit" type="submit">目標を追加</button><button class="btn sub" id="gCancel" type="button" hidden style="width:auto;padding-inline:18px">やめる</button></div>
     </form>
     <form id="fSalary" class="card stack" autocomplete="off">
-      <h2 style="margin:0">給与の目標と年の上限</h2>
+      <h2 style="margin:0">給与の見込みと目標</h2>
       <div class="row2">
         <div><label class="f" for="sExpect">月々の給与見込み（円）</label><input class="t num" id="sExpect" inputmode="numeric" placeholder="空欄なら給与欄の最新額"></div>
         <div><label class="f" for="sTarget">月々の給与目標（円）</label><input class="t num" id="sTarget" inputmode="numeric" placeholder="未設定"></div>
       </div>
       <p class="muted" style="font-size:12px;margin:0">使える額の計算には「見込み」だけを使います。「目標」は達成できたかを見るためのもので、計算には入れません。</p>
-      <div><label class="f" for="sCap">年の上限（円）</label><input class="t num" id="sCap" inputmode="numeric"></div>
-      <div><label class="f" for="sOther">今年の給与のうち、給与欄に入れていない分（円）</label><input class="t num" id="sOther" inputmode="numeric" placeholder="例：1〜9月の合計"></div>
       <button class="btn sub" type="submit">保存</button>
       <div id="salaryInfo"></div>
     </form>
@@ -336,7 +334,7 @@ h3:first-child{margin-top:0}
       <div class="rulemap" id="ruleMap"></div>
       <p class="muted" style="font-size:13px;margin:8px 0 0">口座：その日に口座から出る</p>
       <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数の目標・給与の上限・今月使う額</p>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 複数の目標・今月使う額（給与の上限なし）</p>
     </div>
   </section>
 </div>
@@ -401,7 +399,7 @@ function migrate(){
       st.goals.push({id:"g"+Date.now().toString(36),name:"貯金",amount:Number(g.amount),date:y?fmt(new Date(y,m,0)):"",expect:""})}
     if(Number(g.income)>0&&!st.monthlyExpect) st.monthlyExpect=Number(g.income);
     delete st.goal}
-  if(st.incomeCap===undefined) st.incomeCap=1500000;
+  delete st.incomeCap; delete st.incomeOther;
 }
 const accts=()=>S.settings.accounts;
 const validAcct=id=>accts().some(a=>a.id===id)?id:accts()[0].id;
@@ -518,30 +516,20 @@ function compute(){
     byMonth:[...byMonthMap.entries()].sort((x,y)=>x[0]<y[0]?-1:1).map(([mo,total])=>({mo,total}))};
 }
 
-// 給与の見通し：給与欄にない来月以降の月は「月々の給与見込み」が入るものとする（目標は当てにしない）。
-// ただし暦年の合計が上限を超える分は入らないものとして数える
+// 給与の見通し：給与欄にない来月以降の月は「月々の給与見込み」が入るものとする（目標は当てにしない）
 function incomeFlow(c){
-  const st=S.settings, cap=Number(st.incomeCap)||0, curMo=c.curMo;
+  const st=S.settings, curMo=c.curMo;
   const newest=S.incomes.slice().sort((a,b)=>a.date<b.date?-1:1).pop();
   const target=Number(st.monthlyExpect)||(newest?incVal(newest):0), goalSalary=Number(st.monthlyIncome)||0;
-  const curY=curMo.slice(0,4), other=st.incomeOther&&st.incomeOther.year===curY?Number(st.incomeOther.amount)||0:0;
   const incMonths=new Set(S.incomes.map(i=>i.date.slice(0,7)));
-  const used=new Map([[curY,other]]);
-  for(const i of S.incomes){const y=i.date.slice(0,4);used.set(y,(used.get(y)||0)+incVal(i))}
   const listed=new Map();
   for(const p of c.per) for(const e of p.ev) if(e.inc){const mo=e.date.slice(0,7);listed.set(mo,(listed.get(mo)||0)+e.amount)}
-  const flow=[]; let mo=curMo, clipped=false;
+  const flow=[]; let mo=curMo;
   for(let i=0;i<120;i++,mo=moAdd(mo,1)){
-    let syn=0;
-    if(i>0&&target&&!incMonths.has(mo)){
-      const y=mo.slice(0,4), u=used.get(y)||0;
-      syn=cap?Math.min(target,Math.max(0,cap-u)):target;
-      if(syn<target&&y===curY) clipped=true;
-      used.set(y,u+syn);
-    }
+    const syn=i>0&&target&&!incMonths.has(mo)?target:0;
     flow.push({mo,listed:listed.get(mo)||0,syn,inc:(listed.get(mo)||0)+syn});
   }
-  return {flow,target,goalSalary,cap,other,clipped,used,curY,incMonths};
+  return {flow,target,goalSalary,incMonths};
 }
 // 最近の使い方：直近の終わった月（記録のある月、最大3か月）の平均。分割も使った月に全額で数える
 function spendPace(c){
@@ -734,27 +722,14 @@ function renderPlan(c){
     }
   }
   $("planSummary").innerHTML=h;
-  // 給与の目標と年の上限
+  // 給与の見込みと目標
   const st=S.settings;
   if(!$("fSalary").contains(document.activeElement)){
-    $("sExpect").value=comma(st.monthlyExpect); $("sTarget").value=comma(st.monthlyIncome); $("sCap").value=comma(st.incomeCap); $("sOther").value=comma(F.other);
+    $("sExpect").value=comma(st.monthlyExpect); $("sTarget").value=comma(st.monthlyIncome);
   }
-  const yr=F.curY, inYear=S.incomes.filter(i=>i.date.slice(0,4)===yr);
-  const got=F.other+inYear.filter(i=>i.date<=c.today).reduce((s,i)=>s+incVal(i),0);
-  const planned=inYear.filter(i=>i.date>c.today).reduce((s,i)=>s+incVal(i),0);
-  const syn=F.flow.filter(x=>x.mo.slice(0,4)===yr).reduce((s,x)=>s+x.syn,0);
-  const total=got+planned+syn, cap=F.cap, ratio=cap?Math.min(1,total/cap):0;
-  const openMonths=F.flow.filter(x=>x.mo>c.curMo&&x.mo.slice(0,4)===yr&&!F.incMonths.has(x.mo)).length;
   const thisMo=S.incomes.filter(i=>i.date.slice(0,7)===c.curMo).reduce((s,i)=>s+incVal(i),0);
-  let si=`<div class="planrow"><span>${+yr}年の給与（見込み込み）</span><b class="num">${yen(total)}</b></div>`;
-  if(cap) si+=`<div class="meter" role="img" aria-label="年の上限の${Math.round(ratio*100)}%"><span style="width:${ratio*100}%;${total>cap?"background:var(--chart-neg)":""}"></span></div>
-    <div class="planrow"><span class="muted">上限 ${yen(cap)} の${Math.round(total/cap*100)}%</span><span class="num ${total>cap?"neg":""}">${total>cap?`${yen(total-cap)} 超えています`:`あと ${yen(cap-total)}`}</span></div>`;
-  si+=row("もう入った分",`<span class="num">${yen(got)}</span>`)+row("給与欄の予定",`<span class="num">${yen(planned)}</span>`)+row("給与見込みの分",`<span class="num">${yen(syn)}</span>`);
+  let si="";
   if(F.goalSalary) si+=row(`今月（${+c.curMo.slice(5)}月）の給与と目標の差`,`<span class="num ${thisMo<F.goalSalary?"neg":"pos"}">${thisMo>=F.goalSalary?"+":""}${yen(thisMo-F.goalSalary)}</span>`);
-  if(cap&&openMonths) si+=row(`今年の残り${openMonths}か月で、月あたり`,`<span class="num">${yen(Math.max(0,Math.floor((cap-got-planned)/openMonths)))}まで</span>`);
-  if(cap&&F.goalSalary&&F.goalSalary*12>cap) si+=`<p class="muted" style="font-size:12px;margin:8px 0 0">給与目標×12か月は${yen(F.goalSalary*12)}で上限を超えます。上限内に収める月額は${yen(Math.floor(cap/12))}です。</p>`;
-  if(F.clipped) si+=`<p class="neg" style="font-size:13px;margin:8px 0 0">今年は給与見込みのままだと上限に届くので、超える分を除いて計算しています。</p>`;
-  if(!F.other) si+=`<p class="muted" style="font-size:12px;margin:8px 0 0">給与欄に入っていない今年の給与を入れないと、上限までの残りが実際より多く出ます。</p>`;
   $("salaryInfo").innerHTML=si;
 }
 
@@ -1024,12 +999,12 @@ $("fBudget").addEventListener("submit",async e=>{e.preventDefault();
   if(document.activeElement) document.activeElement.blur();
   await write(()=>{S.settings.spendLimit=v},v?`1か月に使う額を${yen(v)}にしました`:"おすすめの額を使います")});
 $("fSalary").addEventListener("submit",async e=>{e.preventDefault();
-  const expect=toNum($("sExpect").value), target=toNum($("sTarget").value), cap=toNum($("sCap").value), other=toNum($("sOther").value);
+  const expect=toNum($("sExpect").value), target=toNum($("sTarget").value);
   if(document.activeElement) document.activeElement.blur();
-  await write(()=>{const st=S.settings;st.monthlyExpect=expect;st.monthlyIncome=target;st.incomeCap=cap;st.incomeOther={year:today().slice(0,4),amount:other}},"保存しました")});
+  await write(()=>{const st=S.settings;st.monthlyExpect=expect;st.monthlyIncome=target},"保存しました")});
 
 // 設定：口座
-for(const id of ["newAcctBal","incAmt","incAct","fixAmt","gAmt","sExpect","sTarget","sCap","sOther","bLimit"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
+for(const id of ["newAcctBal","incAmt","incAct","fixAmt","gAmt","sExpect","sTarget","bLimit"]) $(id).addEventListener("input",e=>{const n=toNum(e.target.value);e.target.value=n?n.toLocaleString("ja-JP"):""});
 $("fAcct").addEventListener("submit",async e=>{e.preventDefault();
   const name=$("newAcctName").value.trim(); if(!name) return; const v=$("newAcctBal").value.trim();
   if(await write(()=>accts().push({id:"a"+newId().slice(0,8),name,balance:v===""?"":toNum(v),baseDate:today()}),`${name}を追加しました`)){$("newAcctName").value="";$("newAcctBal").value=""}});
