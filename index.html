@@ -12,9 +12,6 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" href="icon.png">
 <title>いくの通帳</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px)}
 body{margin:0}
@@ -22,18 +19,18 @@ body{margin:0}
 
 /* Layout: one-column phone app, passbook-style ledger, bottom tab bar */
 :root{
-  --bg:#eef2f1; --surface:#ffffff; --ink:#16201e; --muted:#5b6966; --line:#d6dfdc;
+  --bg:#f1f3f2; --surface:#ffffff; --ink:#111816; --muted:#4e5b58; --line:#e0e5e3;
   --accent:#0c6657; --accent-ink:#ffffff; --accent-soft:#d9eee8;
   --neg:#b42318; --neg-soft:#fde7e4; --pos:#1b7a3c; --warn-soft:#fff4d6;
-  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  --f-body:"Hiragino Sans","Hiragino Kaku Gothic ProN",-apple-system,system-ui,"Yu Gothic UI","Meiryo",sans-serif;
+  --f-num:-apple-system,"SF Pro Text","Hiragino Sans",system-ui,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0e1413; --surface:#172120; --ink:#e6eeec; --muted:#98a8a4; --line:#2a3735;
+  --bg:#0e1413; --surface:#1a2523; --ink:#f0f5f3; --muted:#aebcb8; --line:#2f3d3a;
   --accent:#4cc0a6; --accent-ink:#06201a; --accent-soft:#1b3530;
   --neg:#ff8b7b; --neg-soft:#3b1f1b; --pos:#6fd28c; --warn-soft:#3a3016; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0e1413; --surface:#172120; --ink:#e6eeec; --muted:#98a8a4; --line:#2a3735;
+  --bg:#0e1413; --surface:#1a2523; --ink:#f0f5f3; --muted:#aebcb8; --line:#2f3d3a;
   --accent:#4cc0a6; --accent-ink:#06201a; --accent-soft:#1b3530;
   --neg:#ff8b7b; --neg-soft:#3b1f1b; --pos:#6fd28c; --warn-soft:#3a3016; color-scheme:dark}
 *{box-sizing:border-box}
@@ -93,7 +90,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0}
 /* passbook */
 .book{overflow-x:auto}
 .book table{width:100%;border-collapse:collapse;font-size:13px}
-.book th{font-weight:500;color:var(--muted);font-size:11px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);letter-spacing:.06em}
+.book th{font-weight:500;color:var(--muted);font-size:12px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);letter-spacing:.06em}
 .book th:nth-child(-n+2){text-align:left}
 .book td{padding:8px 6px;border-bottom:1px dashed var(--line);text-align:right;vertical-align:top}
 .book td:nth-child(2){text-align:left;width:100%}
@@ -130,7 +127,7 @@ h3:first-child{margin-top:0}
 .bill .act input{max-width:9em}
 .rulemap{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:6px 6px;align-items:center;font-size:13px}
 .rulemap select{padding:6px 4px;font-size:14px;min-width:0}
-.rulemap .h{font-size:11px;color:var(--muted)}
+.rulemap .h{font-size:12px;color:var(--muted)}
 /* chart: single-series bars; negative assets drop below the zero line in the status red */
 :root{--chart:#00806a;--chart-neg:#c0291c}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chart:#2fa88e;--chart-neg:#e0604f}}
@@ -139,14 +136,14 @@ h3:first-child{margin-top:0}
 .chart svg{width:100%;height:auto;display:block;overflow:visible}
 .chart .gl{stroke:var(--line);stroke-width:1}
 .chart .zero{stroke:var(--muted);stroke-width:1}
-.chart text{fill:var(--muted);font-family:var(--f-num);font-size:10px}
+.chart text{fill:var(--muted);font-family:var(--f-num);font-size:11px}
 .chart text.cur{fill:var(--ink);font-weight:600}
 .chart .hit{fill:transparent;cursor:pointer}
 .chart .sel{fill:var(--accent-soft)}
 .chart-title{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;margin:14px 0 4px}
 .readout{background:var(--accent-soft);border-radius:9px;padding:8px 10px;font-size:13px;display:flex;flex-wrap:wrap;gap:4px 14px}
 .mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
-.mtable th{font-weight:500;color:var(--muted);font-size:11px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
+.mtable th{font-weight:500;color:var(--muted);font-size:12px;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
 .mtable th:first-child,.mtable td:first-child{text-align:left}
 .mtable td{padding:6px;border-bottom:1px dashed var(--line);text-align:right}
 .mtable tr.cur td{font-weight:700}
@@ -168,7 +165,7 @@ h3:first-child{margin-top:0}
 .catrow input{padding:6px 8px;text-align:right;min-width:0}
 .catrow .cr{text-align:right;font-size:13px}
 .catrow .meter{grid-column:1/-1;height:5px;margin:2px 0 0}
-.catrow .cu{grid-column:1/-1;font-size:11px;color:var(--muted)}
+.catrow .cu{grid-column:1/-1;font-size:12px;color:var(--muted)}
 .goal{border-top:1px solid var(--line);padding:12px 0}
 .goal:first-child{border-top:0;padding-top:0}
 .goal .gl1{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-weight:700}
@@ -177,6 +174,70 @@ h3:first-child{margin-top:0}
 .fold{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 16px}
 .fold summary{font-size:14px;color:var(--ink);font-weight:500;padding:8px 0}
 .fold[open]{padding-bottom:16px}
+/* readability pass: larger type, one clear hierarchy, quieter containers */
+body{font-size:16px}
+.wrap{gap:14px;padding-block:12px}
+.stack{gap:12px}
+h1{font-size:18px}
+h2{font-size:16px;letter-spacing:0;color:var(--ink);font-weight:700;margin:0 0 10px}
+h3{font-size:15px}
+.top small{font-size:13px}
+.card{border:0;border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+label.f,.l{font-size:13px;letter-spacing:0;color:var(--muted)}
+.amount input{font-family:var(--f-num);font-size:36px;font-weight:700}
+.chips{gap:8px}
+.chip{padding:8px 14px;font-size:15px;min-height:38px}
+.chip[aria-pressed="true"]{font-weight:700}
+input.t,select.t{background:var(--surface);border-color:#c9d2cf;padding:10px}
+.hint{font-size:14px;color:var(--ink)}
+.notice{font-size:14px}
+.mini{font-size:13px;padding:6px 12px;color:var(--ink)}
+.btn.sub{color:var(--ink);border-color:#c9d2cf}
+nav.tabs button{font-size:14px;padding:10px 2px}
+.kpi.main{padding:16px;border-radius:16px}
+.kpi.main .l{font-size:14px;color:var(--ink)}
+.kpi.main .v{font-size:34px;font-weight:700;line-height:1.25}
+.kpi .d{font-size:13px;line-height:1.5;color:var(--ink);opacity:.8}
+.minis span{font-size:12px}
+.minis b{font-size:16px}
+.budget{padding:12px 16px;border-radius:16px;font-size:14px;color:var(--ink)}
+.budget b{font-size:20px}
+.planrow{font-size:15px;padding:6px 0}
+.planrow .muted{color:var(--muted)}
+.planrow.total{font-size:16px}
+.fold{border:0;border-radius:16px;padding:2px 16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.fold>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:700;padding:12px 0;cursor:pointer;color:var(--ink)}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:-3px 4px 0 12px;flex:none}
+.fold[open]>summary::after{transform:rotate(-135deg);margin-top:3px}
+.note{font-size:13px;color:var(--muted);margin:0}
+#paid .item{padding-left:0}
+/* 引き落としの一覧 */
+.mohead{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:12px 0 2px;border-bottom:1px solid var(--line)}
+.mohead:first-child{padding-top:0}
+.group,.group:first-child{border-top:0;margin-top:0;padding:10px 0 2px}
+.ghead{font-size:16px;align-items:baseline}
+.ghead .gd{display:inline-block;min-width:3.2em;color:var(--muted);font-weight:500}
+.gacct{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}
+.item{padding:3px 0 3px 3.2em;font-size:14px}
+.item .what div:last-child{font-size:13px}
+.item.one .what div{font-size:13px;color:var(--muted)}
+.item .what>div:first-child:not(:last-child){color:var(--ink)}
+details:not(.fold) summary{font-size:14px;color:var(--muted)}
+/* 資産の一覧 */
+.lrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:15px}
+.lrow:first-child{border-top:0;padding-top:0}
+.lrow b{font-size:17px;font-weight:600}
+.lrow small{display:block;font-size:12px;color:var(--muted);line-height:1.4}
+.lrow.strong{font-weight:700}
+.bill{border-top:1px solid var(--line);padding-block:10px}
+.bill .top2{font-size:15px}
+.acct-sum{font-size:14px;padding:10px 0}
+.acct-sum b{font-size:15px}
+.book table{font-size:14px}
+.tag{font-size:12px;padding:1px 6px}
+.rulemap{gap:8px 6px}
 .tag.warn{background:var(--warn-soft);color:var(--ink)}
 </style>
 </head>
@@ -197,13 +258,13 @@ h3:first-child{margin-top:0}
       </div>
       <div><label class="f">払い方</label><div class="chips" id="cardChips"></div></div>
       <div id="payAcctWrap" hidden><label class="f">どの口座から</label><div class="chips" id="payAcctChips"></div></div>
-      <div id="splitWrap"><label class="f" for="split">支払い回数</label>
-        <select class="t" id="split"><option value="1">1回（一括）</option><option value="2">2回</option><option value="3">3回</option><option value="5">5回</option><option value="6">6回</option><option value="10">10回</option><option value="12">12回</option><option value="18">18回</option><option value="24">24回</option></select></div>
       <div><label class="f">項目</label><div class="chips" id="catChips"></div></div>
       <div class="row2">
-        <div><label class="f" for="dt">使った日（先の日付なら予定）</label><input class="t" id="dt" type="date"></div>
-        <div><label class="f" for="memo">メモ</label><input class="t" id="memo" placeholder="任意"></div>
+        <div><label class="f" for="dt">使った日</label><input class="t" id="dt" type="date"></div>
+        <div id="splitWrap"><label class="f" for="split">支払い回数</label>
+          <select class="t" id="split"><option value="1">1回（一括）</option><option value="2">2回</option><option value="3">3回</option><option value="5">5回</option><option value="6">6回</option><option value="10">10回</option><option value="12">12回</option><option value="18">18回</option><option value="24">24回</option></select></div>
       </div>
+      <input class="t" id="memo" placeholder="メモ（任意）" aria-label="メモ">
       <div class="hint" id="hint"></div>
       <div class="btns"><button class="btn" id="save" type="submit">記録する</button><button class="btn sub" id="cancel" type="button" hidden style="width:auto;padding-inline:18px">やめる</button></div>
     </form>
@@ -218,11 +279,12 @@ h3:first-child{margin-top:0}
   <!-- 資産 -->
   <section id="tab-asset" class="stack" hidden>
     <div class="kpis" id="kpis"></div>
-    <div class="card"><h2>口座ごとの残高</h2><div id="acctSum"></div></div>
+    <div class="card"><h2>資産の内訳</h2><div id="assetList"></div></div>
+    <div class="card" id="acctSumWrap"><h2>口座ごとの残高</h2><div id="acctSum"></div></div>
     <div class="card"><h2>カードの請求額</h2>
-      <p class="muted" style="font-size:12px;margin:0 0 6px">カード会社の明細で請求額が決まったら「確定額」に入れてください。計算はその額を使います。</p>
+      <p class="note" style="margin-bottom:6px">明細で額が決まったら「確定額」に入れると、その額で計算します。</p>
       <div id="bills"></div></div>
-    <div class="card"><h2>口座のお金の流れ</h2><div class="book" id="book"></div></div>
+    <details class="fold"><summary>口座のお金の流れ</summary><div class="book" id="book"></div></details>
   </section>
 
   <!-- グラフ -->
@@ -294,82 +356,89 @@ h3:first-child{margin-top:0}
 
   <!-- 設定 -->
   <section id="tab-set" class="stack" hidden>
-    <div class="card stack">
-      <h2>口座と残高</h2>
-      <div id="acctList"></div>
-      <form id="fAcct" class="stack">
-        <div class="row2">
-          <div><label class="f" for="newAcctName">口座を追加</label><input class="t" id="newAcctName" placeholder="例：ゆうちょ" required></div>
-          <div><label class="f" for="newAcctBal">今の残高</label><input class="t num" id="newAcctBal" inputmode="numeric" placeholder="あとで入れてもOK"></div>
-        </div>
-        <button class="btn sub" type="submit">口座を追加</button>
-      </form>
-    </div>
+    <details class="fold" open><summary>口座と残高</summary>
+      <div class="stack" style="padding-bottom:14px">
+        <div id="acctList" class="stack"></div>
+        <details><summary>口座を追加</summary>
+          <form id="fAcct" class="stack">
+            <div class="row2">
+              <div><label class="f" for="newAcctName">名前</label><input class="t" id="newAcctName" placeholder="例：ゆうちょ" required></div>
+              <div><label class="f" for="newAcctBal">今の残高</label><input class="t num" id="newAcctBal" inputmode="numeric" placeholder="あとでもOK"></div>
+            </div>
+            <button class="btn sub" type="submit">追加</button>
+          </form>
+        </details>
+      </div>
+    </details>
 
-    <div class="card stack">
-      <h2>カードの引き落とし口座</h2>
-      <p class="muted" style="font-size:12px;margin:0">変えると、今月の請求分からその口座で計算します。先月までの分は元の口座のままです。</p>
-      <div class="cardmap" id="cardMap"></div>
-    </div>
+    <details class="fold"><summary>給与・入ってくるお金</summary>
+      <div class="stack" style="padding-bottom:14px">
+        <p class="note">実際に入った額を入れると、見込みの代わりにその額で計算します。</p>
+        <div id="incList"></div>
+        <form id="fInc" class="stack">
+          <h3 style="margin:0">追加</h3>
+          <div class="row2">
+            <div><label class="f" for="incDate">入る日</label><input class="t" id="incDate" type="date" required></div>
+            <div><label class="f" for="incAmt">見込み額</label><input class="t num" id="incAmt" inputmode="numeric"></div>
+          </div>
+          <div class="row2">
+            <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
+            <div><label class="f" for="incAct">実際の額（入ったら）</label><input class="t num" id="incAct" inputmode="numeric" placeholder="まだなら空欄"></div>
+          </div>
+          <div id="incAcctWrap" hidden><label class="f">入る口座</label><div class="chips" id="incAcctChips"></div></div>
+          <button class="btn sub" type="submit">追加</button>
+        </form>
+      </div>
+    </details>
 
-    <div class="card stack">
-      <h2>給与・入ってくるお金</h2>
-      <p class="muted" style="font-size:12px;margin:0">実際に入った額を入れると、計算は見込みの代わりにその額を使います。</p>
-      <div id="incList"></div>
-      <form id="fInc" class="stack">
-        <div class="row2">
-          <div><label class="f" for="incDate">入る日</label><input class="t" id="incDate" type="date" required></div>
-          <div><label class="f" for="incAmt">見込み額</label><input class="t num" id="incAmt" inputmode="numeric"></div>
-        </div>
-        <div class="row2">
-          <div><label class="f" for="incName">名前</label><input class="t" id="incName" value="給与"></div>
-          <div><label class="f" for="incAct">実際に入った額（入ったら）</label><input class="t num" id="incAct" inputmode="numeric" placeholder="まだなら空欄"></div>
-        </div>
-        <div id="incAcctWrap" hidden><label class="f">入る口座</label><div class="chips" id="incAcctChips"></div></div>
-        <button class="btn sub" type="submit">追加</button>
-      </form>
-    </div>
+    <details class="fold"><summary>毎月の固定費</summary>
+      <div class="stack" style="padding-bottom:14px">
+        <div id="fixList"></div>
+        <form id="fFix" class="stack">
+          <h3 style="margin:0">追加</h3>
+          <div class="row2">
+            <div><label class="f" for="fixName">名前</label><input class="t" id="fixName" placeholder="例：保険" required></div>
+            <div><label class="f" for="fixAmt">金額</label><input class="t num" id="fixAmt" inputmode="numeric" required></div>
+          </div>
+          <div class="row2">
+            <div><label class="f" for="fixDay">毎月の支払い日</label><input class="t" id="fixDay" type="number" min="1" max="31" value="27" required></div>
+            <div><label class="f" for="fixStart">開始月（空欄なら今月）</label><input class="t" id="fixStart" type="month"></div>
+          </div>
+          <div><label class="f">払い方</label><div class="chips" id="fixCardChips"></div></div>
+          <div id="fixAcctWrap" hidden><label class="f">どの口座から</label><div class="chips" id="fixAcctChips"></div></div>
+          <p class="note">カード払いにすると、そのカードの締め日に沿って後日まとめて引き落とします。</p>
+          <button class="btn sub" type="submit">追加</button>
+        </form>
+      </div>
+    </details>
 
-    <div class="card stack">
-      <h2>毎月の固定費</h2>
-      <div id="fixList"></div>
-      <form id="fFix" class="stack">
-        <div class="row2">
-          <div><label class="f" for="fixName">名前</label><input class="t" id="fixName" placeholder="例：保険" required></div>
-          <div><label class="f" for="fixAmt">金額</label><input class="t num" id="fixAmt" inputmode="numeric" required></div>
-        </div>
-        <div><label class="f" for="fixDay">支払い日（毎月）</label><input class="t" id="fixDay" type="number" min="1" max="31" value="27" required></div>
-        <div><label class="f">払い方</label><div class="chips" id="fixCardChips"></div></div>
-        <div id="fixAcctWrap" hidden><label class="f">どの口座から</label><div class="chips" id="fixAcctChips"></div></div>
-        <div><label class="f" for="fixStart">開始月（空欄なら今月から）</label><input class="t" id="fixStart" type="month"></div>
-        <div class="hint">カード払いにすると、その日に使った扱いになり、実際の引き落としはそのカードの締め日ルールに沿って後日まとめて計算されます。</div>
-        <button class="btn sub" type="submit">追加</button>
-      </form>
-    </div>
+    <details class="fold"><summary>カードの引き落とし</summary>
+      <div class="stack" style="padding-bottom:14px">
+        <h3 style="margin:0">引き落とし口座</h3>
+        <p class="note">変えると、今月の請求分からその口座で計算します。</p>
+        <div class="cardmap" id="cardMap"></div>
+        <h3 style="margin:8px 0 0">締め日と引き落とし日</h3>
+        <p class="note">変えると、まだ引き落とされていない分を計算し直します。</p>
+        <div class="rulemap" id="ruleMap"></div>
+        <p class="note">土日祝で日がずれる分は計算に入れていません。分割払いは手数料込みの総額で記録してください。</p>
+      </div>
+    </details>
 
-    <div class="card stack">
-      <h2>バックアップ</h2>
-      <p class="muted" style="font-size:13px;margin:0">記録はこのスマホの中だけに保存されます。機種変更やSafariのデータ消去で消えるので、ときどき書き出して、ファイルアプリのOneDriveなどに保存しておいてください。</p>
-      <span class="muted" id="lastBk" style="font-size:12px"></span>
-      <button class="btn sub" id="exportBtn" type="button">バックアップを書き出す</button>
-      <label class="btn sub" for="importFile" style="text-align:center">バックアップから戻す</label>
-      <input id="importFile" type="file" accept=".json,application/json" hidden>
-      <div id="importConfirm" class="notice stack" hidden><span id="importMsg"></span><div class="btns"><button class="btn" id="importOk" type="button">戻す</button><button class="btn sub" id="importNo" type="button">やめる</button></div></div>
-    </div>
+    <details class="fold"><summary>バックアップ</summary>
+      <div class="stack" style="padding-bottom:14px">
+        <p class="note">記録はこのスマホの中だけに保存されます。機種変更やSafariのデータ消去で消えるので、ときどき書き出してファイルアプリに保存してください。</p>
+        <span class="note" id="lastBk"></span>
+        <button class="btn sub" id="exportBtn" type="button">バックアップを書き出す</button>
+        <label class="btn sub" for="importFile" style="text-align:center">バックアップから戻す</label>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+        <div id="importConfirm" class="notice stack" hidden><span id="importMsg"></span><div class="btns"><button class="btn" id="importOk" type="button">戻す</button><button class="btn sub" id="importNo" type="button">やめる</button></div></div>
+        <h3 style="margin:8px 0 0">自動バックアップ</h3>
+        <p class="note">毎日はじめて開いたときと、その日はじめて記録を変えたときに、スマホの中へ自動で保存します（14日分）。間違えたときはここから戻せます。</p>
+        <div id="snapList"></div>
+      </div>
+    </details>
 
-    <div class="card stack">
-      <h2>自動バックアップ</h2>
-      <p class="muted" style="font-size:13px;margin:0">毎日はじめて開いたときと、その日はじめて記録を変えたときに、このスマホの中へ自動で保存します（14日分）。間違えて消したり変えたりしたときは、ここから戻せます。Safariのデータ消去や機種変更には効かないので、上の「書き出す」もときどき続けてください。</p>
-      <div id="snapList"></div>
-    </div>
-    <div class="card">
-      <h2>カードの締め日と引き落とし日</h2>
-      <p class="muted" style="font-size:12px;margin:0 0 8px">変えると、まだ引き落とされていない分の引き落とし日がすべて計算し直されます。</p>
-      <div class="rulemap" id="ruleMap"></div>
-      <p class="muted" style="font-size:13px;margin:8px 0 0">口座：その日に口座から出る</p>
-      <p class="muted" style="font-size:12px;margin:8px 0 0">土日祝で引き落とし日がずれる分は計算に入れていません。分割払いの手数料は入っていないので、手数料込みの総額で記録してください。</p>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">アプリの版：11/8 項目ごとの予定・月々の貯金額</p>
-    </div>
+    <p class="note" style="text-align:center">アプリの版：11/8 全体の見やすさ改善</p>
   </section>
 </div>
 
@@ -717,7 +786,7 @@ function renderPlan(c){
     const b=Number(S.settings.catBudget[k])||0, u=pl.catSpent[k]||0, inp=$("cb-"+i), rest=b-u, over=rest<0;
     if(document.activeElement!==inp) inp.value=comma(b);
     $("cr-"+i).innerHTML=b||u?`<span class="${over?"neg":""}">${over?`${yen(-rest)}超え`:`残り ${yen(rest)}`}</span>`:`<span class="muted">—</span>`;
-    const bar=$("cm-"+i); bar.style.width=(b?Math.min(100,u/b*100):u?100:0)+"%"; bar.style.background=over?"var(--chart-neg)":"var(--chart)";
+    const bar=$("cm-"+i); bar.parentElement.hidden=!(b||u); bar.style.width=(b?Math.min(100,u/b*100):u?100:0)+"%"; bar.style.background=over?"var(--chart-neg)":"var(--chart)";
     $("cu-"+i).textContent=u?`今月使った ${yen(u)}`:"";
   });
   $("catTotal").textContent=pl.catTotal?yen(pl.catTotal):"未設定";
@@ -864,13 +933,23 @@ for(const id of ["chBills","chAssets"]){
 
 function render(){
   const c=compute(); nag(); acctChips(); updateHint();
-  const anySettled=c.per.some(p=>p.settledOut);
-  $("asof").textContent=anySettled?"残高は引き落としを自動で反映":`残高は${md(c.per[0].base)}時点`;
+  const now=new Date(c.today+"T00:00");
+  $("asof").textContent=`${now.getMonth()+1}月${now.getDate()}日（${"日月火水木金土"[now.getDay()]}）`;
   // 記録タブ
   const tagSplit=(it)=>it.n>1?`<span class="tag">分割 ${it.k+1}/${it.n}</span>`:"";
   const row=(e,it)=>`<div class="item" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")}${e.date>today()?'<span class="tag">予定</span>':""}${it?tagSplit(it):(Number(e.split)>1&&e.card!=="口座"?`<span class="tag">${Number(e.split)}回払い</span>`:"")}</div><div>${md(e.date)} · ${esc(e.card)}${e.memo?" · "+esc(e.memo):""}</div></div><span class="num">${yen(it?it.amount:Number(e.amount)||0)}</span></div>`;
-  const fixRow=it=>`<div class="item" style="cursor:default"><div class="what"><div>${esc(it.f.name)}<span class="tag">固定費</span></div><div>毎月${Number(it.f.day)}日</div></div><span class="num">${yen(it.amount)}</span></div>`;
-  $("upcoming").innerHTML=c.upcoming.length?c.upcoming.map(g=>`<div class="group"><div class="ghead"><span>${md(g.date)} ${esc(g.card==="口座"?"口座から":g.card)}${multi()?`<span class="tag">${esc(acctName(g.acct))}</span>`:""}${g.fixed?'<span class="tag">確定</span>':""}</span><span class="num">${yen(g.amount)}</span></div>${g.items.slice().sort((a,b)=>((b.e||{}).date||"")<((a.e||{}).date||"")?-1:1).map(it=>it.e?row(it.e,it):fixRow(it)).join("")}${g.fixed&&g.recorded!==g.amount?`<div class="l">記録の合計 ${yen(g.recorded)}（確定額との差 ${yen(g.amount-g.recorded)}）</div>`:""}</div>`).join("")
+  const moTotal=new Map(); for(const g of c.upcoming){const mo=g.date.slice(0,7);moTotal.set(mo,(moTotal.get(mo)||0)+g.amount)}
+  let upMo="";
+  const upItem=(it,one)=>{
+    const amt=one?"":`<span class="num">${yen(it.amount)}</span>`;
+    if(it.f) return `<div class="item ${one?"one":""}" style="cursor:default"><div class="what"><div>${esc(it.f.name)}（固定費・毎月${Number(it.f.day)}日）</div></div>${amt}</div>`;
+    const e=it.e;
+    return `<div class="item ${one?"one":""}" data-id="${esc(e.id)}"><div class="what"><div>${esc(e.cat||"その他")} · ${md(e.date)}${e.memo?" · "+esc(e.memo):""}${e.date>today()?'<span class="tag">予定</span>':""}${it.n>1?`<span class="tag">分割 ${it.k+1}/${it.n}</span>`:""}</div></div>${amt}</div>`};
+  $("upcoming").innerHTML=c.upcoming.length?c.upcoming.map(g=>{
+    const mo=g.date.slice(0,7); let head="";
+    if(mo!==upMo){upMo=mo;head=`<div class="mohead"><span>${+mo.slice(5)}月の引き落とし</span><span class="num">${yen(moTotal.get(mo))}</span></div>`}
+    const items=g.items.slice().sort((a,b)=>((b.e||{}).date||"")<((a.e||{}).date||"")?-1:1), one=items.length===1&&!(g.fixed&&g.recorded!==g.amount);
+    return head+`<div class="group"><div class="ghead"><span><span class="gd num">${md(g.date)}</span>${esc(g.card==="口座"?"口座から":g.card)}${multi()?`<span class="gacct">${esc(acctName(g.acct))}</span>`:""}${g.fixed?'<span class="tag">確定</span>':""}</span><span class="num">${yen(g.amount)}</span></div>${items.map(it=>upItem(it,one)).join("")}${g.fixed&&g.recorded!==g.amount?`<div class="l" style="padding-left:3.2em">記録の合計 ${yen(g.recorded)}（確定額との差 ${yen(g.amount-g.recorded)}）</div>`:""}</div>`}).join("")
     :`<div class="empty">まだ記録がありません。上の欄に金額を入れて「記録する」を押すと、ここに引き落とし日ごとにまとまります。</div>`;
   $("paidWrap").hidden=!c.paid.length;
   $("paidSum").textContent=`引き落とし済み（${c.paid.length}件）`;
@@ -878,13 +957,15 @@ function render(){
 
   // 資産タブ
   const k=(l,v,d,cls="")=>`<div class="kpi ${cls}"><div class="l">${l}</div><div class="v num ${v<0?"neg":""}">${yen(v)}</div><div class="d">${d}</div></div>`;
-  $("kpis").innerHTML=
-    k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月これからの引き落とし${yen(c.mOut)}。給与と来月以降の請求は入れていません`,"main")+
-    k(multi()?"口座残高の合計":"今の口座残高",c.bal,multi()?`${accts().length}口座の合計`:(c.per[0].settledOut?`${md(c.per[0].base)}の残高${yen(c.per[0].bal0)}から、引き落とし済み${yen(c.per[0].settledOut)}を引いた額`:`${md(c.per[0].base)}時点`))+
-    k("実際の資産",c.bal-c.unpaid,"未払いの引き落としを全部払ったら残る額")+
-    k("総請求額",c.unpaid,"まだ引き落とされていない分")+
-    k("給与込みの総資産",c.bal+c.incomeSum,"残高＋これから入るお金")+
-    k("給与込みの実際の資産",c.final,"総資産から、未払いと固定費を全部引いた額");
+  $("kpis").innerHTML=k("今月あと使える額",c.room,`残高${yen(c.bal)} − 今月これからの引き落とし${yen(c.mOut)}<br>給与と来月以降の請求は入っていません`,"main");
+  const lr=(l,sub,v,cls="")=>`<div class="lrow ${cls}"><span>${l}${sub?`<small>${sub}</small>`:""}</span><b class="num ${v<0?"neg":""}">${yen(v)}</b></div>`;
+  $("assetList").innerHTML=
+    lr(multi()?"口座残高の合計":"今の口座残高",multi()?`${accts().length}口座の合計`:"",c.bal)+
+    lr("未払いの請求","まだ引き落とされていない分",c.unpaid)+
+    lr("実際の資産","全部払ったら残る額",c.bal-c.unpaid,"strong")+
+    lr("給与込みの総資産","残高＋これから入るお金",c.bal+c.incomeSum)+
+    lr("給与込みの実際の資産","未払いと固定費も引いた額",c.final,"strong");
+  $("acctSumWrap").hidden=!multi();
   $("acctSum").innerHTML=c.per.map(p=>`<div class="acct-sum"><b>${esc(p.a.name)}</b><b class="num ${p.bal<0?"neg":""}">${hasBal(p.a)?yen(p.bal):"未入力"}</b>
     <span class="muted">今月これからの引き落とし</span><span class="num">${yen(p.mOut)}</span>
     <span class="muted">今月あと使える額</span><span class="num ${p.room<0?"neg":""}">${yen(p.room)}</span>
@@ -896,7 +977,7 @@ function render(){
     return `<h3>${y===today().slice(0,4)?"":y+"年"}${+m}月の請求 <span class="num" style="float:right">${yen(tot)}</span></h3>`+gs.map(g=>{const key=g.card+"|"+g.date;
       return `<div class="bill"><div class="top2"><span>${md(g.date)} ${esc(g.card)}${g.state==="settled"?'<span class="tag">引き落とし済み</span>':g.fixed?'<span class="tag">確定</span>':'<span class="tag warn">予測</span>'}${multi()?`<span class="tag">${esc(acctName(g.acct))}</span>`:""}</span><b class="num">${yen(g.amount)}</b></div>
         <div class="l">記録の合計 ${yen(g.recorded)}${g.fixed&&g.recorded!==g.amount?`（差 ${yen(g.amount-g.recorded)}）`:""}</div>
-        ${g.state==="settled"?"":`<div class="act"><input class="t num" inputmode="numeric" placeholder="確定額" value="${g.fixed?comma(g.amount):""}" data-bfin="${esc(key)}" aria-label="${esc(g.card)}の確定額"><button class="mini" type="button" data-bf="${esc(key)}">${g.fixed?"直す":"確定"}</button></div>`}</div>`}).join("")}).join("")
+        ${g.state==="settled"?"":`<details><summary>${g.fixed?"確定額を直す":"確定額を入れる"}</summary><div class="act"><input class="t num" inputmode="numeric" placeholder="確定額" value="${g.fixed?comma(g.amount):""}" data-bfin="${esc(key)}" aria-label="${esc(g.card)}の確定額"><button class="mini" type="button" data-bf="${esc(key)}">${g.fixed?"直す":"確定"}</button></div></details>`}</div>`}).join("")}).join("")
     :`<div class="empty">まだカードの請求はありません。</div>`;
   renderCharts(c);
   renderPlan(c);
@@ -914,11 +995,9 @@ function render(){
         <div><label class="f" for="ab-${id}">残高（円）</label><input class="t num" id="ab-${id}" inputmode="numeric" value="${hasBal(p.a)?Math.round(p.bal).toLocaleString("ja-JP"):""}"></div>
         <div><label class="f" for="ad-${id}">確認した日</label><input class="t" id="ad-${id}" type="date" value="${p.settledOut?c.today:(p.a.baseDate||today())}"></div>
       </div>
-      <div class="row2">
-        <div><label class="f" for="an-${id}">名前</label><input class="t" id="an-${id}" value="${esc(p.a.name)}"></div>
-        <div style="align-self:end"><button class="btn sub" type="button" data-acctsave="${id}" style="padding:9px">残高を更新</button></div>
-      </div>
-      <p class="muted" style="font-size:12px;margin:0">${!hasBal(p.a)?"残高を入れてください。":p.settledOut?`${md(p.base)}に入れた残高${yen(p.bal0)}から、引き落とし済み${yen(p.settledOut)}を自動で引いた額です。銀行アプリの額と違ったら直して更新してください。`:"カードや固定費の引き落とし日が来ると、この残高から自動で引かれます。"}</p>
+      <details><summary>口座の名前を変える</summary><input class="t" id="an-${id}" value="${esc(p.a.name)}" aria-label="口座の名前"></details>
+      <button class="btn sub" type="button" data-acctsave="${id}" style="padding:10px">更新</button>
+      <p class="note">${!hasBal(p.a)?"残高を入れてください。":p.settledOut?`引き落とし済みの${yen(p.settledOut)}を自動で引いた額です。銀行アプリと違ったら直して更新してください。`:"引き落とし日が来ると、この残高から自動で引かれます。"}</p>
     </div>`}).join("");
   // カードの引き落とし口座
   if(!$("cardMap").contains(document.activeElement)) $("cardMap").innerHTML=CREDIT.map(cd=>`<span>${esc(cd)}</span><select class="t" data-cardacct="${esc(cd)}" aria-label="${esc(cd)}の引き落とし口座">${accts().map(a=>`<option value="${esc(a.id)}"${cardAcct(cd,"9999")===a.id?" selected":""}>${esc(a.name)}</option>`).join("")}</select>`).join("");
@@ -1077,8 +1156,10 @@ $("cardMap").addEventListener("change",async e=>{const s=e.target.closest("[data
     `${cd}は今月（${+t.slice(5,7)}月）の請求分から${acctName(s.value)}で引き落とします`)});
 $("ruleMap").addEventListener("change",async e=>{const s=e.target.closest("[data-rule]");if(!s)return;
   const cd=s.dataset.rule, k=s.dataset.k, v=Number(s.value); s.blur();
-  await write(()=>{const R=S.settings.cardRules=S.settings.cardRules||{};R[cd]={...(R[cd]||{}),[k]:v}},
-    `${cd}の締め日・引き落とし日を変えました`)});
+  // 引き落とし日が変わると、前の日付で入れた確定額が別の請求として残るので消す
+  const stale=Object.keys(S.settings.billFix).filter(x=>{const [c,d]=x.split("|");return c===cd&&d>today()});
+  await write(()=>{const R=S.settings.cardRules=S.settings.cardRules||{};R[cd]={...(R[cd]||{}),[k]:v};for(const x of stale) delete S.settings.billFix[x]},
+    stale.length?`${cd}の日付を変え、まだ先の確定額は消しました`:`${cd}の締め日・引き落とし日を変えました`)});
 $("fInc").addEventListener("submit",async e=>{e.preventDefault();
   const act=toNum($("incAct").value), amount=toNum($("incAmt").value)||act; if(!amount){$("incAmt").focus();return}
   // 実際の額も入れたら、その場で口座残高に足す（一覧の「保存」と同じ扱い）
